@@ -96,6 +96,48 @@ struct EditorSessionTests {
         #expect(!session.isEditingInteractively)
     }
 
+    @Test func splitAtPlayheadSelectsRightPart() async throws {
+        let session = try makeSession()
+        await session.rebuild()
+        await session.seek(to: 1)
+        #expect(session.canSplit)
+        await session.splitAtPlayhead()
+        #expect(session.timeline.clips.count == 2)
+        #expect(session.selectedClipID == session.timeline.clips[1].id)
+    }
+
+    @Test func duplicateAndDeleteSelected() async throws {
+        let session = try makeSession()
+        let original = session.timeline.clips[0].id
+        session.select(original)
+        await session.duplicateSelected()
+        #expect(session.timeline.clips.count == 2)
+        #expect(session.selectedClipID == session.timeline.clips[1].id)
+
+        await session.deleteSelected()
+        #expect(session.timeline.clips.map(\.id) == [original])
+        #expect(session.selectedClipID == nil)
+    }
+
+    @Test func actionsWithoutSelectionDoNothing() async throws {
+        let session = try makeSession()
+        await session.duplicateSelected()
+        await session.deleteSelected()
+        #expect(session.timeline.clips.count == 1)
+    }
+
+    @Test func insertAtPlayheadPlacesClipsAndAudio() async throws {
+        let session = try makeSession()
+        await session.rebuild()
+        await session.seek(to: 3) // second half of the 4 s clip
+        let audio = AudioItem(mediaFile: "song.m4a", mediaDuration: 10)
+        await session.insertAtPlayhead([.photo(mediaFile: "p.heic")], audio: audio)
+
+        #expect(session.timeline.clips.map(\.mediaFile) == ["a.mov", "p.heic"])
+        #expect(session.timeline.audioItems.first?.timelineStart == 3)
+        #expect(session.currentTime == 4, "Playhead moves to the inserted clip")
+    }
+
     @Test func togglePlaybackFlipsState() async throws {
         let session = try makeSession()
         await session.rebuild()

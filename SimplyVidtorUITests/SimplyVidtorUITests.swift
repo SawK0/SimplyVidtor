@@ -124,6 +124,20 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testSplitAtPlayhead() throws {
+        createProject()
+        let split = app.buttons["editor.tool.split"]
+        XCTAssertFalse(split.isEnabled, "Can't split at the very start")
+
+        let timeline = app.descendants(matching: .any)["editor.timeline"]
+        let start = timeline.coordinate(withNormalizedOffset: CGVector(dx: 0.45, dy: 0.15))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: -60, dy: 0)))
+        XCTAssertTrue(split.waitForEnabled(timeout: 3))
+        split.tap()
+        XCTAssertTrue(clip(1).waitForExistence(timeout: 3))
+    }
+
+    @MainActor
     func testCancellingPickerStaysOnProjects() throws {
         app.buttons["projects.newProject"].tap()
 
@@ -209,5 +223,12 @@ final class SimplyVidtorUITests: XCTestCase {
         let card = app.buttons["projects.card.\(projectName)"]
         XCTAssertTrue(card.waitForExistence(timeout: 3))
         card.press(forDuration: 1)
+    }
+}
+
+private extension XCUIElement {
+    func waitForEnabled(timeout: TimeInterval) -> Bool {
+        let predicate = NSPredicate(format: "isEnabled == true")
+        return XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: predicate, object: self)], timeout: timeout) == .completed
     }
 }

@@ -83,6 +83,23 @@ struct TimelineTests {
         #expect(timeline.clips.count == 3)
     }
 
+    @Test func canSplitMatchesSplit() {
+        let timeline = sample()
+        #expect(timeline.canSplit(at: 1.5))
+        #expect(!timeline.canSplit(at: 0.05))
+        #expect(!timeline.canSplit(at: 4))
+        #expect(!Timeline().canSplit(at: 0))
+    }
+
+    @Test(arguments: [
+        (0.0, 0), (1.9, 0), // first half of a (0..<4)
+        (2.1, 1), (5.4, 1), // second half of a, first half of b (4..<7)
+        (5.6, 2), (9.9, 3), // second half of b, second half of c
+    ])
+    func insertionIndexAtPlayhead(time: Double, expected: Int) {
+        #expect(sample().insertionIndex(at: time) == expected)
+    }
+
     // MARK: - Trim
 
     @Test func trimStartKeepsOutPoint() {

@@ -111,10 +111,7 @@ struct EditorView: View {
         guard let session else { return }
         let hadClips = !session.timeline.clips.isEmpty
         Task {
-            await session.update { timeline in
-                timeline.insert(result.clips, at: timeline.clips.count)
-                if let audio = result.audio { timeline.audioItems.append(audio) }
-            }
+            await session.insertAtPlayhead(result.clips, audio: result.audio)
             if !hadClips {
                 try? await ProjectLibrary(context: context, store: store).updateCover(of: project)
             }
@@ -136,7 +133,11 @@ struct EditorView: View {
     private var toolbar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Theme.Spacing.xs) {
-                ToolButton(title: "Split", systemImage: "scissors") {}
+                ToolButton(title: "Split", systemImage: "scissors") {
+                    Task { await session?.splitAtPlayhead() }
+                }
+                .disabled(!(session?.canSplit ?? false))
+                .accessibilityIdentifier("editor.tool.split")
                 ToolButton(title: "Speed", systemImage: "gauge.with.dots.needle.50percent") {}
                 ToolButton(title: "Volume", systemImage: "speaker.wave.2") {}
                 ToolButton(title: "Filters", systemImage: "camera.filters") {}
@@ -145,8 +146,16 @@ struct EditorView: View {
                 ToolButton(title: "Audio", systemImage: "music.note") { pickerTab = .audio }
                     .accessibilityIdentifier("editor.tool.audio")
                 ToolButton(title: "Crop", systemImage: "crop") {}
-                ToolButton(title: "Duplicate", systemImage: "plus.square.on.square") {}
-                ToolButton(title: "Delete", systemImage: "trash") {}
+                ToolButton(title: "Duplicate", systemImage: "plus.square.on.square") {
+                    Task { await session?.duplicateSelected() }
+                }
+                .disabled(session?.selectedClipID == nil)
+                .accessibilityIdentifier("editor.tool.duplicate")
+                ToolButton(title: "Delete", systemImage: "trash") {
+                    Task { await session?.deleteSelected() }
+                }
+                .disabled(session?.selectedClipID == nil)
+                .accessibilityIdentifier("editor.tool.delete")
             }
             .padding(.horizontal, Theme.Spacing.gutter)
             .padding(.vertical, Theme.Spacing.xs)

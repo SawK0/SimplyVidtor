@@ -105,8 +105,8 @@ Chunk 3: clip editing
 - [x] VoiceOver: each clip is an element with Move Left / Move Right actions; the playhead is adjustable
 
 Chunk 4: toolbar actions
-- [ ] Toolbar actions: Split, Duplicate, Delete
-- [ ] Add clip (+) re-opens picker and inserts at playhead
+- [x] Toolbar actions: Split (clip under the playhead, selects the right part), Duplicate and Delete (selected clip); buttons disable when they can't act
+- [x] Add clip (+) inserts at the playhead: before the clip under it in its first half, after it in the second; picked audio starts at the playhead
 
 Chunk 5: history
 - [ ] Undo / redo (snapshot `Timeline` values)

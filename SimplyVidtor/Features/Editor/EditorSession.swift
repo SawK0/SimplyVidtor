@@ -55,6 +55,44 @@ final class EditorSession {
         selectedClipID = (id == selectedClipID) ? nil : id
     }
 
+    // MARK: - Toolbar actions
+
+    var canSplit: Bool { timeline.canSplit(at: currentTime) }
+
+    /// Splits the clip under the playhead and selects the right-hand part.
+    func splitAtPlayhead() async {
+        var newID: Clip.ID?
+        await update { newID = $0.split(at: currentTime) }
+        if let newID { selectedClipID = newID }
+    }
+
+    func duplicateSelected() async {
+        guard let id = selectedClipID else { return }
+        var copyID: Clip.ID?
+        await update { copyID = $0.duplicateClip(id) }
+        if let copyID { selectedClipID = copyID }
+    }
+
+    func deleteSelected() async {
+        guard let id = selectedClipID else { return }
+        await update { $0.removeClip(id) }
+    }
+
+    /// Inserts clips at the playhead (see `Timeline.insertionIndex`) and moves
+    /// the playhead to the first of them. Audio starts at the playhead.
+    func insertAtPlayhead(_ clips: [Clip], audio: AudioItem?) async {
+        let index = timeline.insertionIndex(at: currentTime)
+        let playhead = currentTime
+        await update { timeline in
+            timeline.insert(clips, at: index)
+            if var audio {
+                audio.timelineStart = playhead
+                timeline.audioItems.append(audio)
+            }
+        }
+        if !clips.isEmpty { await seek(to: timeline.startTime(ofClipAt: index)) }
+    }
+
     // MARK: - Interactive edits
 
     /// Starts a drag-driven edit. Updates change `timeline` live without saving

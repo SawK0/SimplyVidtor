@@ -42,14 +42,31 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         clips.insert(contentsOf: newClips, at: min(max(index, 0), clips.count))
     }
 
+    /// Whether `split(at:)` would succeed.
+    func canSplit(at time: Double) -> Bool {
+        guard let index = clipIndex(at: time) else { return false }
+        let offset = time - startTime(ofClipAt: index)
+        return offset >= Clip.minimumDuration && clips[index].duration - offset >= Clip.minimumDuration
+    }
+
+    /// Where new clips go for a playhead at `time`: before the clip under it if
+    /// the playhead is in its first half, otherwise after it.
+    func insertionIndex(at time: Double) -> Int {
+        var start = 0.0
+        for (index, clip) in clips.enumerated() {
+            if time < start + clip.duration / 2 { return index }
+            start += clip.duration
+        }
+        return clips.count
+    }
+
     /// Splits the clip under `time`. Returns the id of the new right-hand clip,
     /// or `nil` when either half would be shorter than `Clip.minimumDuration`.
     @discardableResult
     mutating func split(at time: Double) -> Clip.ID? {
-        guard let index = clipIndex(at: time) else { return nil }
+        guard canSplit(at: time), let index = clipIndex(at: time) else { return nil }
         let offset = time - startTime(ofClipAt: index)
         let clip = clips[index]
-        guard offset >= Clip.minimumDuration, clip.duration - offset >= Clip.minimumDuration else { return nil }
 
         let sourceOffset = offset * clip.speed
         var right = clip
