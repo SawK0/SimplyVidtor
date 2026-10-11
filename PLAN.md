@@ -23,7 +23,8 @@ Design source: [Figma: iOS Video Editor](https://www.figma.com/design/sjymzmXSpW
 | UI | SwiftUI | iOS 26.5+, dark appearance only for v1 |
 | State | `@Observable` models | One `EditorSession` per open project |
 | Persistence | SwiftData | `Project` row + timeline stored as a Codable value |
-| Media import | PhotoKit (`PHPickerViewController` / custom grid) | Copy picked files into the app container so projects survive library changes |
+| Media import | One sheet, two tabs: inline `PhotosPicker` for videos/photos; custom Audio tab | Copy picked files into the app container so projects survive library changes |
+| Audio import | `.fileImporter` for Files; audio track extracted from a picked video | Imported audio is kept in an app-wide library and reusable across projects |
 | Playback | `AVPlayer` + `AVMutableComposition` | Rebuild the composition when the timeline changes |
 | Filters, transitions, text | Custom `AVVideoCompositing` compositor rendering with Core Image | One pipeline for preview and export (see note below) |
 | Text / stickers (editing) | SwiftUI overlay on the preview while a text item is being edited | Keep positions in normalized (0...1) coordinates |
@@ -72,8 +73,8 @@ Timeline durations are derived (`sourceDuration / speed`), never stored, so spli
 Chunk 1: environment setup
 - [x] `.gitignore`, `Makefile` (`make build`, `make test`, `make test-unit`, `make test-ui`)
 - [x] `App/` folder with `SimplyVidtorApp` + `RootView`, dark-only (`preferredColorScheme(.dark)` and `UIUserInterfaceStyle = Dark`)
-- [x] Photo library usage strings (`INFOPLIST_KEY_NSPhotoLibraryUsageDescription`, `...AddUsageDescription`)
-- [x] iPhone locked to portrait (iPad keeps all orientations until open question 3 is decided)
+- [x] Photo library add usage string for saving exports (read access not needed: `PhotosPicker` runs out of process)
+- [x] iPhone locked to portrait; iPad supports all orientations
 - [x] Template tests replaced with a unit smoke test and a launch UI test; `make test` green
 
 Chunk 2: design system
@@ -85,11 +86,15 @@ Chunk 2: design system
 Chunk 3: navigation shell
 - [ ] Root navigation: Projects → Editor (full-screen cover), sheets for picker and export, all with placeholder screens
 - [ ] Remaining folders (`Features/`, `Engine/`, `Model/`) created as their first files land
+- [x] Shared `SimplyVidtor` scheme in `xcshareddata` (Debug for Run/Test, Release for Profile/Archive; `-componentGallery` launch arg, off by default)
 
 ### M1: Projects + Media Picker (Figma 01, 04)
 - [ ] Projects screen: New Project card, quick actions, recent projects grid
 - [ ] SwiftData `Project` model, create / rename / delete / duplicate
-- [ ] Media picker: recents grid, All / Videos / Photos filter, ordered multi-select, "Add N clips"
+- [ ] Media picker sheet with two tabs (`SegmentedPicker`): **Videos & Photos** and **Audio**
+- [ ] Videos & Photos tab: inline `PhotosPicker` (`.photosPickerStyle(.inline)`, `selectionBehavior: .ordered`), All / Videos / Photos filter, own header and "Add N clips" button
+- [ ] Audio tab: list of imported audio with tap-to-preview (`AVPlayer`), single select, "Import from Files" (`.fileImporter`), "Extract from video" (pick a video, keep its audio track)
+- [ ] Picked audio goes on the audio track at 0:00; clips go on the video track
 - [ ] Import pipeline: copy into container, generate cover thumbnail
 - [ ] Photos (stills) become clips with a default 3 s duration
 
@@ -113,7 +118,7 @@ Chunk 3: navigation shell
 ### M4: Overlays (Figma 07)
 - [ ] Text track: add, edit inline with keyboard, font / style / color, drag and pinch on preview
 - [ ] Sticker track (emoji / bundled assets)
-- [ ] Audio: import music from Files, trim, volume, fade in/out, waveform
+- [ ] Audio: editor Audio tool opens the picker sheet on the Audio tab; trim, volume, fade in/out, waveform
 
 ### M5: Export (Figma 03, 08, 09)
 - [ ] Export sheet: resolution, frame rate, Smart HDR, estimated size
@@ -124,7 +129,7 @@ Chunk 3: navigation shell
 - [ ] Haptics on snap and selection
 - [ ] VoiceOver labels for every tool and timeline item
 - [ ] Performance pass: thumbnail cache, composition rebuild cost, memory on long projects
-- [ ] iPad layout (target already includes iPad) or drop iPad for v1
+- [ ] iPad pass: regular-width editor layout, Stage Manager / Split View window sizes, pointer and keyboard shortcuts (space = play/pause, ⌘Z / ⇧⌘Z)
 
 ## Testing
 
@@ -134,7 +139,7 @@ Chunk 3: navigation shell
 
 ## Open questions
 
-1. Custom media grid (matches Figma) or system `PhotosPicker` for v1? Custom needs full library permission.
-2. Music source: Files app only, or bundled royalty-free tracks too?
-3. Keep iPad in v1, or iPhone only?
+1. ~~Custom media grid or system `PhotosPicker`?~~ **Decided: inline `PhotosPicker`** inside our own sheet (no permission prompt, iPad and iCloud handled by the system). Audio needs preview listening, which no system picker offers, so the Audio tab is custom.
+2. ~~Music source?~~ **Decided: v1 = Files import + extract audio from a video.** Bundled royalty-free tracks later, once licensed tracks are sourced. Music library (`MPMediaPickerController`) skipped: Apple Music tracks are DRM-protected and need another permission.
+3. ~~Keep iPad in v1, or iPhone only?~~ **Decided: iPad is in v1.** Layouts adapt by size class; iPad gets all orientations.
 4. Remaining Figma screens (Speed, Filters, Text Editing) are designed in this plan but not yet drawn in Figma.
