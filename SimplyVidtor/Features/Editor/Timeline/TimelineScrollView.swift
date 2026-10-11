@@ -7,8 +7,12 @@ struct TimelineScrollView<Content: View>: UIViewRepresentable {
     let contentWidth: CGFloat
     /// Applied whenever the user isn't touching the timeline.
     let offset: CGFloat
+    var isScrollEnabled = true
     let onScrub: (CGFloat) -> Void
     let onInteractionChanged: (Bool) -> Void
+    /// Long press in content coordinates. Done in UIKit because a SwiftUI long
+    /// press inside the hosted content stops the scroll view from panning.
+    var onLongPress: (UIGestureRecognizer.State, CGFloat) -> Void = { _, _ in }
     @ViewBuilder let content: Content
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
@@ -20,6 +24,10 @@ struct TimelineScrollView<Content: View>: UIViewRepresentable {
         view.alwaysBounceHorizontal = true
         view.decelerationRate = .fast
         view.delegate = context.coordinator
+        let longPress = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.longPressed(_:)))
+        longPress.minimumPressDuration = 0.35
+        longPress.delegate = context.coordinator
+        view.addGestureRecognizer(longPress)
         return view
     }
 
@@ -27,6 +35,7 @@ struct TimelineScrollView<Content: View>: UIViewRepresentable {
         context.coordinator.parent = self
         view.host.rootView = content
         view.contentWidth = contentWidth
+        view.isScrollEnabled = isScrollEnabled
         if !context.coordinator.isInteracting, abs(view.contentOffset.x - offset) > 0.5 {
             context.coordinator.isSettingOffset = true
             view.contentOffset.x = offset
@@ -34,7 +43,7 @@ struct TimelineScrollView<Content: View>: UIViewRepresentable {
         }
     }
 
-    final class Coordinator: NSObject, UIScrollViewDelegate {
+    final class Coordinator: NSObject, UIScrollViewDelegate, UIGestureRecognizerDelegate {
         var parent: TimelineScrollView
         var isInteracting = false
         var isSettingOffset = false
@@ -56,6 +65,16 @@ struct TimelineScrollView<Content: View>: UIViewRepresentable {
 
         func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
             setInteracting(false)
+        }
+
+        /// SwiftUI's recognizers in the hosted content (clip taps) would otherwise block the long press.
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+            true
+        }
+
+        @objc func longPressed(_ recognizer: UILongPressGestureRecognizer) {
+            guard let view = recognizer.view else { return }
+            parent.onLongPress(recognizer.state, recognizer.location(in: view).x)
         }
 
         private func setInteracting(_ value: Bool) {

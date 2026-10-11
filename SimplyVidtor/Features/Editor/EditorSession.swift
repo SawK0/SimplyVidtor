@@ -9,6 +9,7 @@ final class EditorSession {
     private(set) var currentTime: Double = 0
     private(set) var isPlaying = false
     private(set) var buildError: (any Error)?
+    var selectedClipID: Clip.ID?
 
     @ObservationIgnored let player = AVPlayer()
     @ObservationIgnored private let store: MediaStore
@@ -16,6 +17,8 @@ final class EditorSession {
     @ObservationIgnored private var endObserver: (any NSObjectProtocol)?
     @ObservationIgnored private var isSeeking = false
     @ObservationIgnored private var pendingSeek: Double?
+    /// The timeline before the current drag; set while a trim or reorder is in progress.
+    private var interactiveBase: Timeline?
 
     var duration: Double { timeline.duration }
 
@@ -41,8 +44,46 @@ final class EditorSession {
         edit(&copy)
         guard copy != timeline else { return }
         timeline = copy
+        if let id = selectedClipID, timeline.index(ofClip: id) == nil { selectedClipID = nil }
         try? project.save(timeline)
         await rebuild()
+    }
+
+    var isEditingInteractively: Bool { interactiveBase != nil }
+
+    func select(_ id: Clip.ID?) {
+        selectedClipID = (id == selectedClipID) ? nil : id
+    }
+
+    // MARK: - Interactive edits
+
+    /// Starts a drag-driven edit. Updates change `timeline` live without saving
+    /// or rebuilding; `endInteractiveEdit` commits once.
+    func beginInteractiveEdit() {
+        guard interactiveBase == nil else { return }
+        pause()
+        interactiveBase = timeline
+    }
+
+    /// Re-applies `edit` to the timeline as it was when the drag began.
+    func updateInteractiveEdit(_ edit: (inout Timeline) -> Void) {
+        guard var copy = interactiveBase else { return }
+        edit(&copy)
+        timeline = copy
+    }
+
+    func endInteractiveEdit() async {
+        guard let base = interactiveBase else { return }
+        interactiveBase = nil
+        guard timeline != base else { return }
+        try? project.save(timeline)
+        await rebuild()
+    }
+
+    func cancelInteractiveEdit() {
+        guard let base = interactiveBase else { return }
+        timeline = base
+        interactiveBase = nil
     }
 
     func rebuild() async {

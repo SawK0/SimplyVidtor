@@ -102,6 +102,19 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         clips.removeAll { $0.id == id }
     }
 
+    /// Where a dragged clip should land when the finger is at `time` (in this
+    /// timeline's layout): after every other clip whose midpoint is left of it.
+    func reorderDestination(movingClip id: Clip.ID, toTime time: Double) -> Int {
+        var destination = 0
+        var start = 0.0
+        for clip in clips {
+            defer { start += clip.duration }
+            guard clip.id != id else { continue }
+            if start + clip.duration / 2 < time { destination += 1 }
+        }
+        return destination
+    }
+
     /// Moves a clip so it ends up at `destination` in the resulting array.
     mutating func moveClip(_ id: Clip.ID, to destination: Int) {
         guard let index = index(ofClip: id) else { return }

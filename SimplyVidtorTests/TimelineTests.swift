@@ -185,6 +185,23 @@ struct TimelineTests {
         #expect(timeline.clips.map(\.mediaFile) == ["a.mov", "b.mov", "c.heic"])
     }
 
+    @Test(arguments: [
+        (0.5, 0), // before a's midpoint (2): first
+        (2.5, 1), // past a's midpoint: after a
+        (8.6, 2), // past c's midpoint (8.5): last
+    ])
+    func reorderDestinationForDraggedMiddleClip(time: Double, expected: Int) {
+        let timeline = sample()
+        #expect(timeline.reorderDestination(movingClip: timeline.clips[1].id, toTime: time) == expected)
+    }
+
+    @Test func reorderDestinationApplied() {
+        var timeline = sample()
+        let id = timeline.clips[0].id
+        timeline.moveClip(id, to: timeline.reorderDestination(movingClip: id, toTime: 9))
+        #expect(timeline.clips.map(\.mediaFile) == ["b.mov", "c.heic", "a.mov"])
+    }
+
     @Test func unknownClipIDIsIgnored() {
         var timeline = sample()
         let before = timeline

@@ -65,6 +65,65 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testSelectClipAndTrimEnd() throws {
+        createProject()
+        // Zoom out so the clip's end handle is on screen.
+        app.descendants(matching: .any)["editor.timeline"].pinch(withScale: 0.3, velocity: -1)
+        sleep(1)
+        let clip = app.descendants(matching: .any)["timeline.clip.0"]
+        clip.tap()
+
+        let trailing = app.descendants(matching: .any)["timeline.trim.trailing"]
+        XCTAssertTrue(trailing.waitForExistence(timeout: 2), "Selecting a clip shows trim handles")
+
+        let start = trailing.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: -60, dy: 0)))
+
+        let timecode = app.staticTexts["editor.timecode"]
+        let shorter = NSPredicate(format: "NOT (label ENDSWITH '/ 00:05.0')")
+        expectation(for: shorter, evaluatedWith: timecode)
+        waitForExpectations(timeout: 3)
+    }
+
+    @MainActor
+    func testLongPressDragReordersClips() throws {
+        createProject()
+        let timeline = app.descendants(matching: .any)["editor.timeline"]
+        XCTAssertTrue(app.descendants(matching: .any)["timeline.clip.0"].waitForExistence(timeout: 3))
+        app.buttons["editor.addClip"].tap()
+        app.buttons["mediaPicker.add"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["timeline.clip.1"].waitForExistence(timeout: 3))
+
+        // Zoom out so both clips fit on screen.
+        timeline.pinch(withScale: 0.3, velocity: -1)
+        sleep(1)
+
+        // Make the first clip distinguishable by trimming it, then deselect via the ruler.
+        clip(0).tap()
+        let trailing = app.descendants(matching: .any)["timeline.trim.trailing"]
+        XCTAssertTrue(trailing.waitForExistence(timeout: 2))
+        let handle = trailing.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        handle.press(forDuration: 0.1, thenDragTo: handle.withOffset(CGVector(dx: -30, dy: 0)))
+        let trimmedValue = try XCTUnwrap(clip(0).value as? String)
+        XCTAssertNotEqual(trimmedValue, "Video, 5.0 seconds")
+        timeline.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.1)).tap()
+        XCTAssertTrue(trailing.waitForNonExistence(timeout: 2))
+
+        // Long-press the middle of the first clip and drag it past the second.
+        let grab = clip(0).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let drop = timeline.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.5))
+        grab.press(forDuration: 0.6, thenDragTo: drop)
+
+        expectation(for: NSPredicate(format: "value == %@", trimmedValue), evaluatedWith: clip(1))
+        waitForExpectations(timeout: 3)
+        XCTAssertEqual(clip(0).value as? String, "Video, 5.0 seconds")
+    }
+
+    private func clip(_ index: Int) -> XCUIElement {
+        app.descendants(matching: .any)["timeline.clip.\(index)"]
+    }
+
+    @MainActor
     func testCancellingPickerStaysOnProjects() throws {
         app.buttons["projects.newProject"].tap()
 
@@ -142,6 +201,8 @@ final class SimplyVidtorUITests: XCTestCase {
         XCTAssertTrue(add.waitForExistence(timeout: 3))
         add.tap()
         XCTAssertTrue(app.buttons["editor.export"].waitForExistence(timeout: 3), "Editor did not open")
+        // Wait until the editor has settled; presenting a cover mid-transition is dropped.
+        XCTAssertTrue(app.descendants(matching: .any)["timeline.clip.0"].waitForExistence(timeout: 5))
     }
 
     private func openMenu(on projectName: String) {

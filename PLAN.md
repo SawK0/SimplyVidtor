@@ -98,7 +98,11 @@ Chunk 2: timeline view
 - [ ] Photos render in the preview (custom compositor; they show black for now)
 
 Chunk 3: clip editing
-- [ ] Select clip, trim handles, reorder by long-press drag
+- [x] Tap to select a clip (accent frame), tap empty track to deselect; selection haptic
+- [x] Trim handles on the selected clip; trimming the start keeps the clip's right edge under the finger
+- [x] Long-press drag to reorder, other clips reflow live (UIKit long press on the scroll view: a SwiftUI long press in hosted content blocks scrolling)
+- [x] Interactive edits (`beginInteractiveEdit` / `updateInteractiveEdit` / `endInteractiveEdit`): live while dragging, one save and rebuild at the end
+- [x] VoiceOver: each clip is an element with Move Left / Move Right actions; the playhead is adjustable
 
 Chunk 4: toolbar actions
 - [ ] Toolbar actions: Split, Duplicate, Delete

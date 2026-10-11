@@ -3,27 +3,119 @@ import SwiftUI
 /// Ruler, clip track and audio track, laid out in timeline points. Leading and
 /// trailing padding of half the visible width lets time 0 and the end reach the playhead.
 struct TimelineTracksView: View {
-    let timeline: Timeline
+    let session: EditorSession
     let metrics: TimelineMetrics
     let inset: CGFloat
     let store: MediaStore
+    /// The clip being dragged to a new position, and the finger's x in track coordinates.
+    let reordering: (id: Clip.ID, x: CGFloat)?
+
+    /// While trimming a clip's start, clips from that index on are drawn shifted
+    /// by this much so the clip's right edge stays put under the finger.
+    @State private var leadingTrim: (index: Int, shift: CGFloat)?
+
+    private var timeline: Timeline { session.timeline }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
             RulerView(duration: timeline.duration, metrics: metrics)
                 .frame(height: Theme.Size.rulerHeight)
-            HStack(spacing: 0) {
-                ForEach(Array(timeline.clips.enumerated()), id: \.element.id) { index, clip in
-                    FilmstripView(clip: clip, width: metrics.width(of: clip.duration), store: store)
-                        .accessibilityIdentifier("timeline.clip.\(index)")
-                }
-            }
-            .frame(height: Theme.Size.timelineClipHeight)
+            clipTrack
+                .frame(height: Theme.Size.timelineClipHeight)
             audioTrack
                 .frame(height: Theme.Size.audioTrackHeight)
         }
         .padding(.horizontal, inset)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background {
+            Color.clear
+                .contentShape(.rect)
+                .onTapGesture { session.select(nil) }
+        }
+    }
+
+    private var clipTrack: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(timeline.clips.enumerated()), id: \.element.id) { index, clip in
+                clipView(clip, at: index)
+            }
+        }
+    }
+
+    private func clipView(_ clip: Clip, at index: Int) -> some View {
+        let isSelected = session.selectedClipID == clip.id
+        let isReordering = reordering?.id == clip.id
+        let width = metrics.width(of: clip.duration)
+        return FilmstripView(clip: clip, width: width, store: store)
+            .overlay {
+                if isSelected && !isReordering {
+                    SelectionFrame(
+                        onLeadingDrag: { trim(clip.id, at: index, leading: true, by: $0) },
+                        onTrailingDrag: { trim(clip.id, at: index, leading: false, by: $0) },
+                        onEnded: finishTrim
+                    )
+                }
+            }
+            .offset(x: displayOffset(for: clip, at: index, width: width))
+            .scaleEffect(isReordering ? 1.06 : 1)
+            .shadow(color: isReordering ? Theme.Palette.shadow : .clear, radius: 8)
+            .zIndex(isReordering ? 1 : 0)
+            .onTapGesture { session.select(clip.id) }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Clip \(index + 1)")
+            .accessibilityValue(accessibilityValue(for: clip))
+            .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+            .accessibilityAction { session.select(clip.id) }
+            .accessibilityAction(named: "Move Left") { move(clip.id, to: index - 1) }
+            .accessibilityAction(named: "Move Right") { move(clip.id, to: index + 1) }
+            .accessibilityIdentifier("timeline.clip.\(index)")
+    }
+
+    private func displayOffset(for clip: Clip, at index: Int, width: CGFloat) -> CGFloat {
+        if let reordering, reordering.id == clip.id {
+            return reordering.x - (metrics.offset(for: timeline.startTime(ofClipAt: index)) + width / 2)
+        }
+        if let leadingTrim, index >= leadingTrim.index { return leadingTrim.shift }
+        return 0
+    }
+
+    // MARK: - Trim
+
+    private func trim(_ id: Clip.ID, at index: Int, leading: Bool, by translation: CGFloat) {
+        session.beginInteractiveEdit()
+        let delta = Double(translation / metrics.pointsPerSecond)
+        var baseWidth: CGFloat = 0
+        session.updateInteractiveEdit { timeline in
+            guard let i = timeline.index(ofClip: id) else { return }
+            let clip = timeline.clips[i]
+            baseWidth = metrics.width(of: clip.duration)
+            if leading {
+                timeline.trimStart(ofClip: id, toSource: clip.sourceStart + delta * clip.speed)
+            } else {
+                timeline.trimEnd(ofClip: id, toSource: clip.sourceEnd + delta * clip.speed)
+            }
+        }
+        if leading, let i = timeline.index(ofClip: id) {
+            leadingTrim = (index, baseWidth - metrics.width(of: timeline.clips[i].duration))
+        }
+    }
+
+    private func finishTrim() {
+        leadingTrim = nil
+        Task { await session.endInteractiveEdit() }
+    }
+
+    // MARK: - Reorder
+
+    private func move(_ id: Clip.ID, to destination: Int) {
+        guard destination >= 0, destination < timeline.clips.count else { return }
+        Task { await session.update { $0.moveClip(id, to: destination) } }
+    }
+
+    private func accessibilityValue(for clip: Clip) -> String {
+        let kind = clip.kind == .photo ? String(localized: "Photo") : String(localized: "Video")
+        let seconds = clip.duration.formatted(.number.precision(.fractionLength(1)))
+        return String(localized: "\(kind), \(seconds) seconds")
     }
 
     private var audioTrack: some View {
@@ -41,6 +133,44 @@ struct TimelineTracksView: View {
                     .offset(x: metrics.offset(for: item.timelineStart))
             }
         }
+    }
+}
+
+/// Accent outline with a grab handle on each edge.
+private struct SelectionFrame: View {
+    let onLeadingDrag: (CGFloat) -> Void
+    let onTrailingDrag: (CGFloat) -> Void
+    let onEnded: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            handle(systemImage: "chevron.compact.left", label: "Trim start", id: "timeline.trim.leading", onDrag: onLeadingDrag)
+            Spacer(minLength: 0)
+            handle(systemImage: "chevron.compact.right", label: "Trim end", id: "timeline.trim.trailing", onDrag: onTrailingDrag)
+        }
+        .padding(.trailing, Theme.Size.clipGap)
+        .background {
+            RoundedRectangle(cornerRadius: Theme.Radius.clip)
+                .strokeBorder(Theme.Palette.accent, lineWidth: Theme.Size.selectionBorder)
+                .padding(.trailing, Theme.Size.clipGap)
+        }
+    }
+
+    private func handle(systemImage: String, label: LocalizedStringKey, id: String, onDrag: @escaping (CGFloat) -> Void) -> some View {
+        Image(systemName: systemImage)
+            .font(Theme.Typography.headline)
+            .foregroundStyle(Theme.Palette.onAccent)
+            .frame(width: Theme.Size.trimHandleWidth)
+            .frame(maxHeight: .infinity)
+            .background(Theme.Palette.accent, in: .rect(cornerRadius: Theme.Radius.clip))
+            .contentShape(.rect.inset(by: -Theme.Spacing.xs))
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { onDrag($0.translation.width) }
+                    .onEnded { _ in onEnded() }
+            )
+            .accessibilityLabel(Text(label))
+            .accessibilityIdentifier(id)
     }
 }
 
@@ -133,6 +263,7 @@ struct EditorTimelineView: View {
 
     @State private var metrics = TimelineMetrics()
     @State private var zoomBase: TimelineMetrics?
+    @State private var reordering: (id: Clip.ID, x: CGFloat)?
 
     var body: some View {
         GeometryReader { geo in
@@ -140,10 +271,12 @@ struct EditorTimelineView: View {
             TimelineScrollView(
                 contentWidth: metrics.width(of: session.duration) + geo.size.width,
                 offset: metrics.offset(for: session.currentTime),
+                isScrollEnabled: !session.isEditingInteractively,
                 onScrub: { session.scrub(to: metrics.time(forOffset: $0)) },
-                onInteractionChanged: { if $0 { session.pause() } }
+                onInteractionChanged: { if $0 { session.pause() } },
+                onLongPress: { state, x in reorder(state, trackX: x - inset) }
             ) {
-                TimelineTracksView(timeline: session.timeline, metrics: metrics, inset: inset, store: store)
+                TimelineTracksView(session: session, metrics: metrics, inset: inset, store: store, reordering: reordering)
             }
             .overlay { playhead }
         }
@@ -156,14 +289,35 @@ struct EditorTimelineView: View {
                 }
                 .onEnded { _ in zoomBase = nil }
         )
-        .accessibilityElement()
-        .accessibilityLabel("Timeline")
-        .accessibilityValue("\(Timecode.string(session.currentTime)) of \(Timecode.string(session.duration))")
-        .accessibilityAdjustableAction { direction in
-            let step = direction == .increment ? 1.0 : -1.0
-            session.scrub(to: session.currentTime + step)
-        }
+        .sensoryFeedback(.selection, trigger: session.selectedClipID)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("editor.timeline")
+    }
+
+    /// Long-press a clip, then drag: other clips reflow as the finger passes their midpoints.
+    private func reorder(_ state: UIGestureRecognizer.State, trackX: CGFloat) {
+        let time = metrics.time(forOffset: trackX)
+        switch state {
+        case .began:
+            guard !session.isEditingInteractively,
+                  let index = session.timeline.clipIndex(at: time)
+            else { return }
+            session.beginInteractiveEdit()
+            session.selectedClipID = nil
+            reordering = (session.timeline.clips[index].id, trackX)
+        case .changed:
+            guard let id = reordering?.id else { return }
+            reordering = (id, trackX)
+            session.updateInteractiveEdit { timeline in
+                timeline.moveClip(id, to: timeline.reorderDestination(movingClip: id, toTime: time))
+            }
+        case .ended, .cancelled, .failed:
+            guard reordering != nil else { return }
+            reordering = nil
+            Task { await session.endInteractiveEdit() }
+        default:
+            break
+        }
     }
 
     private var playhead: some View {
@@ -176,5 +330,12 @@ struct EditorTimelineView: View {
                     .frame(width: Theme.Spacing.xs, height: Theme.Spacing.xs)
             }
             .allowsHitTesting(false)
+            .accessibilityElement()
+            .accessibilityLabel("Playhead")
+            .accessibilityValue("\(Timecode.string(session.currentTime)) of \(Timecode.string(session.duration))")
+            .accessibilityAdjustableAction { direction in
+                let step = direction == .increment ? 1.0 : -1.0
+                session.scrub(to: session.currentTime + step)
+            }
     }
 }
