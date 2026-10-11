@@ -72,7 +72,13 @@ Design is drawn at 393×852 in Inter as a stand-in; **use SF Pro (system font) i
 
 ### Logo and app icon
 
-Sources live in `Branding/` (outside the app target, so they are not bundled). `app-icon.svg` / `app-icon-tinted.svg` are the masters for `AppIcon.appiconset`; after editing them, re-render to 1024×1024 PNGs **without alpha** (App Store rejects icons with transparency). Open `Branding/preview.html` to see every variant on dark and light.
+All brand images live in `Assets.xcassets`:
+
+- `AppIcon`: `app-icon.png` (default + dark) and `app-icon-tinted.png` (white glyph on black for tinted mode). 1024×1024, **no alpha** (App Store rejects icons with transparency).
+- `LogoGlyph`: split play glyph only, transparent, vector SVG. Use for splash, empty states, About: `Image(.logoGlyph)`.
+- `LogoMark`: glyph on the rounded dark tile, vector SVG: `Image(.logoMark)`.
+
+The mark is a rounded play triangle (`388,300 388,724 756,512`, stroke 72, round joins) cut by a slanted gap, right half offset `(14,-18)`, yellow `#FFCC00` on a `#24242C → #0B0B0F` gradient. `LogoMark.svg` is the master; regenerate the icon PNGs from it if the mark changes. There is no wordmark asset: render "Simply" + "Vidtor" (accent) in SF Pro Bold in code.
 
 ### Color tokens
 
