@@ -7,6 +7,8 @@ struct EditorView: View {
 
     @State private var pickerTab: MediaPickerTab?
     @State private var isExporting = false
+    @State private var session: EditorSession?
+    @State private var loadFailed = false
     @Environment(\.modelContext) private var context
     @Environment(\.mediaStore) private var store
 
@@ -25,6 +27,19 @@ struct EditorView: View {
         .sheet(isPresented: $isExporting) {
             ExportSheet(onClose: { isExporting = false })
         }
+        .task { await openSession() }
+        .onDisappear { session?.pause() }
+    }
+
+    private func openSession() async {
+        guard session == nil else { return }
+        do {
+            let session = try EditorSession(project: project, store: store)
+            await session.rebuild()
+            self.session = session
+        } catch {
+            loadFailed = true
+        }
     }
 
     private var topBar: some View {
@@ -35,7 +50,10 @@ struct EditorView: View {
                 .font(Theme.Typography.headline)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity)
-            Button("Export") { isExporting = true }
+            Button("Export") {
+                session?.pause()
+                isExporting = true
+            }
                 .buttonStyle(.primaryCompact)
                 .accessibilityIdentifier("editor.export")
         }
@@ -45,34 +63,58 @@ struct EditorView: View {
 
     private var preview: some View {
         ZStack {
-            Theme.Palette.bgSurface
-            Image(systemName: "play.fill")
-                .font(Theme.Typography.display)
-                .foregroundStyle(Theme.Palette.textSecondary)
-                .accessibilityLabel("Play")
-            Text("00:00.0 / \(Duration.seconds(duration), format: .time(pattern: .minuteSecond))")
-                .font(Theme.Typography.timecode)
-                .foregroundStyle(Theme.Palette.textSecondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                .padding(Theme.Spacing.sm)
+            Color.black
+            if let session {
+                PlayerView(player: session.player)
+                    .accessibilityHidden(true)
+            } else if loadFailed {
+                ContentUnavailableView("Couldn’t Open Project", systemImage: "exclamationmark.triangle")
+            } else {
+                ProgressView()
+            }
         }
         .frame(maxHeight: .infinity)
+        .contentShape(.rect)
+        .onTapGesture { session?.togglePlayback() }
+        .safeAreaInset(edge: .bottom, spacing: 0) { playbackBar }
+    }
+
+    private var playbackBar: some View {
+        HStack(spacing: Theme.Spacing.sm) {
+            let isPlaying = session?.isPlaying ?? false
+            CircleIconButton(
+                systemImage: isPlaying ? "pause.fill" : "play.fill",
+                accessibilityLabel: isPlaying ? "Pause" : "Play"
+            ) {
+                session?.togglePlayback()
+            }
+            .accessibilityIdentifier("editor.playPause")
+            .disabled(session == nil)
+
+            Text("\(Timecode.string(session?.currentTime ?? 0)) / \(Timecode.string(session?.duration ?? 0))")
+                .font(Theme.Typography.timecode)
+                .foregroundStyle(Theme.Palette.textSecondary)
+                .accessibilityIdentifier("editor.timecode")
+            Spacer()
+        }
+        .padding(.horizontal, Theme.Spacing.gutter)
+        .padding(.vertical, Theme.Spacing.xs)
+        .background(Theme.Palette.bgBase)
     }
 
     private func append(_ result: MediaPickerResult) {
         pickerTab = nil
-        guard var timeline = try? project.loadTimeline() else { return }
-        let hadClips = !timeline.clips.isEmpty
-        timeline.insert(result.clips, at: timeline.clips.count)
-        if let audio = result.audio { timeline.audioItems.append(audio) }
-        try? project.save(timeline)
-        if !hadClips {
-            Task { try? await ProjectLibrary(context: context, store: store).updateCover(of: project) }
+        guard let session else { return }
+        let hadClips = !session.timeline.clips.isEmpty
+        Task {
+            await session.update { timeline in
+                timeline.insert(result.clips, at: timeline.clips.count)
+                if let audio = result.audio { timeline.audioItems.append(audio) }
+            }
+            if !hadClips {
+                try? await ProjectLibrary(context: context, store: store).updateCover(of: project)
+            }
         }
-    }
-
-    private var duration: Double {
-        (try? project.loadTimeline().duration) ?? 0
     }
 
     private var timeline: some View {

@@ -54,6 +54,8 @@ SimplyVidtor/
 - SwiftData models are listed once in `AppSchema.models`; build every container (app, previews, tests) with `AppSchema.container(inMemory:)`.
 - Media files live in `MediaStore` (Application Support/Media) and are referenced by file name. Read the store from `@Environment(\.mediaStore)`.
 - Present `MediaPickerView` with `.fullScreenCover`, never `.sheet` (the inline photo picker breaks sheet safe areas).
+- AVFoundation: keep the `AVAsset` alive while using its tracks (tracks don't retain it; inserting from an orphaned track fails with -11800). Never end a composition with an empty range; it gets dropped, so fill gaps with `blank.mov`.
+- Editor edits go through `EditorSession.update { timeline in ... }`, which saves and rebuilds playback.
 - Previews use `PreviewData.container()` for sample projects.
 - Tests use Swift Testing (`import Testing`, `@Test`, `#expect`) for unit tests; XCTest only for UI tests.
 - App is dark-only for v1: set `.preferredColorScheme(.dark)` at the root.

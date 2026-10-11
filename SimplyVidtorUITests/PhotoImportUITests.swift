@@ -29,7 +29,9 @@ final class PhotoImportUITests: XCTestCase {
         addButton.tap()
 
         // 2 s video + 3 s photo.
-        XCTAssertTrue(app.staticTexts["00:00.0 / 0:05"].waitForExistence(timeout: 15), "Editor did not show a 5 s timeline")
+        let timecode = app.staticTexts["editor.timecode"]
+        XCTAssertTrue(timecode.waitForExistence(timeout: 15), "Editor did not open")
+        XCTAssertEqual(timecode.label, "00:00.0 / 00:05.0")
         app.buttons["editor.close"].tap()
         XCTAssertTrue(app.buttons["projects.card.Untitled Project"].waitForExistence(timeout: 3))
         sleep(1)

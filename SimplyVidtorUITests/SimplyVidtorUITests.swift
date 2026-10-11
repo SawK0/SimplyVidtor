@@ -33,6 +33,23 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testPlaybackAdvancesTimecode() throws {
+        createProject()
+        let timecode = app.staticTexts["editor.timecode"]
+        XCTAssertTrue(timecode.waitForExistence(timeout: 3))
+        XCTAssertEqual(timecode.label, "00:00.0 / 00:05.0")
+
+        let playPause = app.buttons["editor.playPause"]
+        playPause.tap()
+        XCTAssertEqual(playPause.label, "Pause")
+        let advanced = NSPredicate(format: "label != '00:00.0 / 00:05.0'")
+        expectation(for: advanced, evaluatedWith: timecode)
+        waitForExpectations(timeout: 3)
+        playPause.tap()
+        XCTAssertEqual(playPause.label, "Play")
+    }
+
+    @MainActor
     func testCancellingPickerStaysOnProjects() throws {
         app.buttons["projects.newProject"].tap()
 

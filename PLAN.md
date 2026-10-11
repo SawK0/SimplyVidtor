@@ -84,13 +84,26 @@ Chunk 3: navigation shell
 - [x] Photos (stills) become clips with a default 3 s duration
 
 ### M2: Editor core (Figma 02)
-- [ ] Preview player with play/pause, timecode, fullscreen
+
+Chunk 1: playback
+- [x] `CompositionBuilder`: timeline → `AVComposition` + audio mix (speed via `scaleTimeRange`, clip volume, audio items with fades). Photos and missing files are filled with a stretched bundled `blank.mov`, because AVFoundation drops trailing empty ranges
+- [x] `EditorSession`: owns the timeline and `AVPlayer`; `update` saves to the project and rebuilds
+- [x] Preview (`PlayerView`, no system controls), play/pause button and tap-to-toggle, `mm:ss.t` timecode
+- [ ] Fullscreen preview
+
+Chunk 2: timeline view
 - [ ] Timeline: ruler, filmstrip clips, fixed center playhead, scroll to scrub, pinch to zoom
+
+Chunk 3: clip editing
 - [ ] Select clip, trim handles, reorder by long-press drag
+
+Chunk 4: toolbar actions
 - [ ] Toolbar actions: Split, Duplicate, Delete
 - [ ] Add clip (+) re-opens picker and inserts at playhead
+
+Chunk 5: history
 - [ ] Undo / redo (snapshot `Timeline` values)
-- [ ] Autosave on change (debounced)
+- [ ] Autosave on change (debounced; today every edit saves immediately)
 
 ### M3: Clip tools (Figma 05, 06)
 - [ ] Speed panel: 0.1×–10× slider on a log scale (so 1× sits mid-track), keep pitch toggle (Curve tab later)
