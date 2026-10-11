@@ -59,11 +59,12 @@ struct EditorView: View {
         .frame(maxHeight: .infinity)
     }
 
-    private func append(_ clips: [Clip]) {
+    private func append(_ result: MediaPickerResult) {
         pickerTab = nil
         guard var timeline = try? project.loadTimeline() else { return }
         let hadClips = !timeline.clips.isEmpty
-        timeline.insert(clips, at: timeline.clips.count)
+        timeline.insert(result.clips, at: timeline.clips.count)
+        if let audio = result.audio { timeline.audioItems.append(audio) }
         try? project.save(timeline)
         if !hadClips {
             Task { try? await ProjectLibrary(context: context, store: store).updateCover(of: project) }

@@ -53,7 +53,7 @@ struct MediaImporter {
 }
 
 /// A movie handed over by the photo picker, copied out of its temporary location.
-private nonisolated struct PickedMovie: Transferable {
+nonisolated struct PickedMovie: Transferable {
     let url: URL
 
     static var transferRepresentation: some TransferRepresentation {

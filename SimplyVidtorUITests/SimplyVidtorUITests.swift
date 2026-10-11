@@ -6,7 +6,7 @@ final class SimplyVidtorUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["-inMemoryStore", "-stubMediaPicker"]
+        app.launchArguments = ["-inMemoryStore", "-stubMediaPicker", "-seedSampleAudio"]
         app.launch()
     }
 
@@ -50,7 +50,26 @@ final class SimplyVidtorUITests: XCTestCase {
         createProject()
 
         app.buttons["editor.tool.audio"].tap()
-        XCTAssertTrue(app.staticTexts["Imported audio with preview lands in M1."].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["audio.importFiles"].waitForExistence(timeout: 3))
+    }
+
+    @MainActor
+    func testPreviewSelectAndAddAudio() throws {
+        app.buttons["projects.newProject"].tap()
+        app.buttons["Audio"].tap()
+
+        let play = app.buttons["audio.play.Sample Tone"]
+        XCTAssertTrue(play.waitForExistence(timeout: 5))
+        play.tap()
+        XCTAssertEqual(play.label, "Pause preview")
+        play.tap()
+        XCTAssertEqual(play.label, "Play preview")
+
+        app.buttons["audio.row.Sample Tone"].tap()
+        let add = app.buttons["mediaPicker.add"]
+        XCTAssertEqual(add.label, "Add audio")
+        add.tap()
+        XCTAssertTrue(app.buttons["editor.export"].waitForExistence(timeout: 3), "Editor did not open")
     }
 
     @MainActor

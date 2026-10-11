@@ -1,4 +1,5 @@
 import PhotosUI
+import SwiftData
 import SwiftUI
 
 enum MediaPickerTab: String, CaseIterable, Identifiable {
@@ -34,16 +35,23 @@ enum MediaFilter: String, CaseIterable, Identifiable {
     }
 }
 
+struct MediaPickerResult {
+    var clips: [Clip]
+    var audio: AudioItem?
+}
+
 /// Presented as a full-screen cover: inside a sheet the inline photo picker
 /// strips the sheet's safe area and the header ends up under the status bar.
 struct MediaPickerView: View {
     @State var tab: MediaPickerTab
     let onCancel: () -> Void
-    let onAdd: ([Clip]) -> Void
+    let onAdd: (MediaPickerResult) -> Void
 
     @Environment(\.mediaStore) private var store
     @State private var filter = MediaFilter.all
     @State private var selection: [PhotosPickerItem] = []
+    @State private var selectedAudio: AudioAsset?
+    @State private var player = AudioPreviewPlayer()
     @State private var importTask: Task<Void, Never>?
     @State private var pendingClips: [Clip]?
 
@@ -69,6 +77,7 @@ struct MediaPickerView: View {
         } message: {
             Text("They may be unavailable offline or in an unsupported format.")
         }
+        .onDisappear { player.stop() }
     }
 
     private var header: some View {
@@ -93,10 +102,11 @@ struct MediaPickerView: View {
 
     private var addButton: some View {
         Button(action: startImport) {
-            if selection.isEmpty {
-                Text("Add")
-            } else {
-                Text("Add ^[\(selection.count) clip](inflect: true)")
+            switch (selection.count, selectedAudio != nil) {
+            case (0, false): Text("Add")
+            case (0, true): Text("Add audio")
+            case (let count, false): Text("Add ^[\(count) clip](inflect: true)")
+            case (let count, true): Text("Add ^[\(count) clip](inflect: true) & audio")
             }
         }
         .buttonStyle(.primary)
@@ -124,11 +134,7 @@ struct MediaPickerView: View {
     }
 
     private var audioTab: some View {
-        ContentUnavailableView(
-            "Audio",
-            systemImage: "music.note.list",
-            description: Text("Imported audio with preview lands in M1.")
-        )
+        AudioLibraryView(selection: $selectedAudio, player: player)
     }
 
     private var importingOverlay: some View {
@@ -150,23 +156,28 @@ struct MediaPickerView: View {
         #if DEBUG
         if Self.usesStubMedia { return true }
         #endif
-        return !selection.isEmpty
+        return !selection.isEmpty || selectedAudio != nil
     }
 
     private func startImport() {
+        player.stop()
         #if DEBUG
         if Self.usesStubMedia {
-            onAdd([.video(mediaFile: "stub.mov", duration: 5)])
+            finish(with: [.video(mediaFile: "stub.mov", duration: 5)])
             return
         }
         #endif
+        guard !selection.isEmpty else {
+            finish(with: [])
+            return
+        }
         let items = selection
         importTask = Task {
             let result = await MediaImporter(store: store).importItems(items)
             guard !Task.isCancelled else { return }
             importTask = nil
             if result.failedCount == 0 {
-                onAdd(result.clips)
+                finish(with: result.clips)
             } else {
                 pendingClips = result.clips
             }
@@ -176,12 +187,17 @@ struct MediaPickerView: View {
     private func finishWithPendingClips() {
         guard let clips = pendingClips else { return }
         pendingClips = nil
-        if clips.isEmpty { return }
-        onAdd(clips)
+        if clips.isEmpty && selectedAudio == nil { return }
+        finish(with: clips)
+    }
+
+    private func finish(with clips: [Clip]) {
+        onAdd(MediaPickerResult(clips: clips, audio: selectedAudio?.makeItem()))
     }
 
     /// Cancelling mid-import leaves copied files behind; `removeUnusedMedia` cleans them up.
     private func close() {
+        player.stop()
         importTask?.cancel()
         importTask = nil
         onCancel()
@@ -195,6 +211,7 @@ struct MediaPickerView: View {
 }
 
 #Preview {
-    MediaPickerView(tab: .media, onCancel: {}, onAdd: { _ in })
+    MediaPickerView(tab: .audio, onCancel: {}, onAdd: { _ in })
+        .modelContainer(PreviewData.container())
         .preferredColorScheme(.dark)
 }

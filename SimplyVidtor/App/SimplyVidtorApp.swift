@@ -26,10 +26,7 @@ struct SimplyVidtorApp: App {
 
     private static func makeContainer() -> ModelContainer {
         do {
-            return try ModelContainer(
-                for: Project.self,
-                configurations: ModelConfiguration(isStoredInMemoryOnly: inMemory)
-            )
+            return try AppSchema.container(inMemory: inMemory)
         } catch {
             fatalError("Could not open the project store: \(error)")
         }

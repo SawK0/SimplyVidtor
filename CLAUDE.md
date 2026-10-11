@@ -50,7 +50,8 @@ SimplyVidtor/
 - Normalized (0...1) coordinates for overlay positions and crop rects.
 - Every screen gets a `#Preview` with sample data.
 - Use `Theme` tokens (`Theme.Palette`, `Typography`, `Spacing`, `Radius`, `Size`), never raw hex or magic numbers in views. Reuse `DesignSystem/` components before writing new chrome; add new ones to `ComponentGallery`.
-- Debug launch arguments (also in the shared scheme, off by default): `-componentGallery` opens the component gallery; `-inMemoryStore` uses a throwaway SwiftData store and media folder (UI tests always pass it); `-stubMediaPicker` makes the picker's Add return a placeholder clip without a selection.
+- Debug launch arguments (also in the shared scheme, off by default): `-componentGallery` opens the component gallery; `-inMemoryStore` uses a throwaway SwiftData store and media folder (UI tests always pass it); `-stubMediaPicker` makes the picker's Add return a placeholder clip without a selection; `-seedSampleAudio` adds a 2 s "Sample Tone" to an empty audio library.
+- SwiftData models are listed once in `AppSchema.models`; build every container (app, previews, tests) with `AppSchema.container(inMemory:)`.
 - Media files live in `MediaStore` (Application Support/Media) and are referenced by file name. Read the store from `@Environment(\.mediaStore)`.
 - Present `MediaPickerView` with `.fullScreenCover`, never `.sheet` (the inline photo picker breaks sheet safe areas).
 - Previews use `PreviewData.container()` for sample projects.

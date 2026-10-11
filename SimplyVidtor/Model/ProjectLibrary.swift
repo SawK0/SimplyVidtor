@@ -44,7 +44,7 @@ struct ProjectLibrary {
         try context.save()
     }
 
-    /// Deletes media no project refers to (left by deletes or cancelled imports).
+    /// Deletes media that no project or library audio refers to (left by deletes or cancelled imports).
     /// Does nothing if any timeline fails to decode, since its files can't be accounted for.
     func removeUnusedMedia() throws {
         var referenced = Set<String>()
@@ -54,6 +54,7 @@ struct ProjectLibrary {
             referenced.formUnion(timeline.audioItems.map(\.mediaFile))
             if let cover = project.coverImageFile { referenced.insert(cover) }
         }
+        referenced.formUnion(try context.fetch(FetchDescriptor<AudioAsset>()).map(\.mediaFile))
         try store.removeFiles(notIn: referenced)
     }
 }

@@ -4,10 +4,7 @@ import SwiftData
 
 enum PreviewData {
     static func container(withSamples: Bool = true) -> ModelContainer {
-        let container = try! ModelContainer(
-            for: Project.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-        )
+        let container = try! AppSchema.container(inMemory: true)
         if withSamples {
             for project in sampleProjects() {
                 container.mainContext.insert(project)

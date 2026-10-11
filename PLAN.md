@@ -76,8 +76,8 @@ Chunk 3: navigation shell
 - [x] Projects screen on real data (`@Query`, newest first, empty state); create via picker, rename / duplicate / delete from the context menu (`ProjectLibrary`, `ProjectLibraryTests`, UI test)
 - [x] Media picker with two tabs (`SegmentedPicker`): **Videos & Photos** and **Audio**. Full-screen cover, not a sheet: inside a sheet the inline picker strips the safe area
 - [x] Videos & Photos tab: inline `PhotosPicker` (`.photosPickerStyle(.inline)`, `selectionBehavior: .continuousAndOrdered` so taps reach the app), All / Videos / Photos filter, own header and "Add N clips" button
-- [ ] Audio tab: list of imported audio with tap-to-preview (`AVPlayer`), single select, "Import from Files" (`.fileImporter`), "Extract from video" (pick a video, keep its audio track)
-- [ ] Picked audio goes on the audio track at 0:00; clips go on the video track
+- [x] Audio tab (`AudioLibraryView`): app-wide library (`AudioAsset`, `AudioLibrary`) with tap-to-preview (`AudioPreviewPlayer`), single select, swipe to delete, "From Files" (`.fileImporter`, multi-select), "From Video" (keeps the soundtrack as M4A)
+- [x] Picked audio goes on the audio track at 0:00; clips go on the video track (editor + appends both)
 - [x] Import pipeline (`MediaImporter`, `MediaStore`): copy into the app's media folder in selection order, partial-failure alert, cancel on close
 - [x] Cover thumbnail from the first clip (`Thumbnailer`), shown on project cards
 - [x] Unused media removed on delete and at launch; skipped if any timeline fails to decode

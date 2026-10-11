@@ -10,10 +10,7 @@ struct ProjectLibraryTests {
     private let library: ProjectLibrary
 
     init() throws {
-        container = try ModelContainer(
-            for: Project.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-        )
+        container = try AppSchema.container(inMemory: true)
         library = ProjectLibrary(context: container.mainContext, store: store)
     }
 

@@ -36,20 +36,39 @@ struct RootView: View {
         .fullScreenCover(item: $router.openProject) { project in
             EditorView(project: project, onClose: router.closeEditor)
         }
-        .task { try? library.removeUnusedMedia() }
+        .task {
+            try? library.removeUnusedMedia()
+            #if DEBUG
+            await seedSampleAudioIfRequested()
+            #endif
+        }
     }
 
     private var library: ProjectLibrary { ProjectLibrary(context: context, store: store) }
 
-    private func createProject(with clips: [Clip]) {
+    private func createProject(with result: MediaPickerResult) {
         do {
-            let project = try library.create(timeline: Timeline(clips: clips))
+            let timeline = Timeline(clips: result.clips, audioItems: result.audio.map { [$0] } ?? [])
+            let project = try library.create(timeline: timeline)
             router.finishNewProject(project)
             Task { try? await library.updateCover(of: project) }
         } catch {
             router.cancelModal()
         }
     }
+
+    #if DEBUG
+    /// `-seedSampleAudio` adds a 2 s "Sample Tone" to an empty audio library, for UI tests.
+    private func seedSampleAudioIfRequested() async {
+        guard ProcessInfo.processInfo.arguments.contains("-seedSampleAudio"),
+              (try? context.fetchCount(FetchDescriptor<AudioAsset>())) == 0
+        else { return }
+        let url = URL.temporaryDirectory.appending(path: "Sample Tone.wav")
+        try? FileManager.default.removeItem(at: url)
+        guard (try? ToneGenerator.writeTone(to: url)) != nil else { return }
+        _ = try? await AudioLibrary(context: context, store: store).importFile(at: url)
+    }
+    #endif
 }
 
 #Preview {

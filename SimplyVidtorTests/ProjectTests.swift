@@ -29,10 +29,7 @@ struct ProjectTests {
     }
 
     @Test func persistsInSwiftData() throws {
-        let container = try ModelContainer(
-            for: Project.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-        )
+        let container = try AppSchema.container(inMemory: true)
         let context = container.mainContext
         let project = try Project(name: "Trip", timeline: timeline)
         context.insert(project)
