@@ -11,6 +11,7 @@ struct EditorView: View {
     @State private var loadFailed = false
     @Environment(\.modelContext) private var context
     @Environment(\.mediaStore) private var store
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,7 +29,13 @@ struct EditorView: View {
             ExportSheet(onClose: { isExporting = false })
         }
         .task { await openSession() }
-        .onDisappear { session?.pause() }
+        .onDisappear {
+            session?.pause()
+            try? context.save()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { try? context.save() }
+        }
     }
 
     private func openSession() async {
@@ -96,6 +103,16 @@ struct EditorView: View {
                 .foregroundStyle(Theme.Palette.textSecondary)
                 .accessibilityIdentifier("editor.timecode")
             Spacer()
+            CircleIconButton(systemImage: "arrow.uturn.backward", accessibilityLabel: "Undo") {
+                Task { await session?.undo() }
+            }
+            .disabled(!(session?.canUndo ?? false))
+            .accessibilityIdentifier("editor.undo")
+            CircleIconButton(systemImage: "arrow.uturn.forward", accessibilityLabel: "Redo") {
+                Task { await session?.redo() }
+            }
+            .disabled(!(session?.canRedo ?? false))
+            .accessibilityIdentifier("editor.redo")
             CircleIconButton(systemImage: "plus", accessibilityLabel: "Add clip", isProminent: true) {
                 pickerTab = .media
             }

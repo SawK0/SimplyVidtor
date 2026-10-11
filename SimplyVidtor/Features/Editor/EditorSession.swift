@@ -19,6 +19,9 @@ final class EditorSession {
     @ObservationIgnored private var pendingSeek: Double?
     /// The timeline before the current drag; set while a trim or reorder is in progress.
     private var interactiveBase: Timeline?
+    private var undoStack: [Timeline] = []
+    private var redoStack: [Timeline] = []
+    static let historyLimit = 50
 
     var duration: Double { timeline.duration }
 
@@ -43,7 +46,42 @@ final class EditorSession {
         var copy = timeline
         edit(&copy)
         guard copy != timeline else { return }
+        let previous = timeline
         timeline = copy
+        await commit(replacing: previous)
+    }
+
+    // MARK: - History
+
+    var canUndo: Bool { !undoStack.isEmpty }
+    var canRedo: Bool { !redoStack.isEmpty }
+
+    func undo() async {
+        guard let previous = undoStack.popLast() else { return }
+        redoStack.append(timeline)
+        await apply(previous)
+    }
+
+    func redo() async {
+        guard let next = redoStack.popLast() else { return }
+        undoStack.append(timeline)
+        await apply(next)
+    }
+
+    /// Records `previous` for undo, then saves and rebuilds the current timeline.
+    private func commit(replacing previous: Timeline) async {
+        undoStack.append(previous)
+        if undoStack.count > Self.historyLimit { undoStack.removeFirst() }
+        redoStack.removeAll()
+        await persistAndRebuild()
+    }
+
+    private func apply(_ snapshot: Timeline) async {
+        timeline = snapshot
+        await persistAndRebuild()
+    }
+
+    private func persistAndRebuild() async {
         if let id = selectedClipID, timeline.index(ofClip: id) == nil { selectedClipID = nil }
         try? project.save(timeline)
         await rebuild()
@@ -114,8 +152,7 @@ final class EditorSession {
         guard let base = interactiveBase else { return }
         interactiveBase = nil
         guard timeline != base else { return }
-        try? project.save(timeline)
-        await rebuild()
+        await commit(replacing: base)
     }
 
     func cancelInteractiveEdit() {

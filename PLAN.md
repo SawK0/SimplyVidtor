@@ -109,8 +109,8 @@ Chunk 4: toolbar actions
 - [x] Add clip (+) inserts at the playhead: before the clip under it in its first half, after it in the second; picked audio starts at the playhead
 
 Chunk 5: history
-- [ ] Undo / redo (snapshot `Timeline` values)
-- [ ] Autosave on change (debounced; today every edit saves immediately)
+- [x] Undo / redo (snapshot `Timeline` values, 50 steps; a whole trim or reorder drag is one step; undo is saved)
+- [x] Autosave: every committed edit writes the project; SwiftData context saved when the editor closes or the app leaves the foreground
 
 ### M3: Clip tools (Figma 05, 06)
 - [ ] Speed panel: 0.1×–10× slider on a log scale (so 1× sits mid-track), keep pitch toggle (Curve tab later)

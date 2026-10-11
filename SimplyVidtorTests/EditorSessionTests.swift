@@ -138,6 +138,76 @@ struct EditorSessionTests {
         #expect(session.currentTime == 4, "Playhead moves to the inserted clip")
     }
 
+    @Test func undoAndRedoRestoreSnapshots() async throws {
+        let session = try makeSession()
+        #expect(!session.canUndo)
+        await session.update { $0.insert([.photo(mediaFile: "p.heic")], at: 1) }
+        await session.update { $0.removeClip($0.clips[0].id) }
+        #expect(session.timeline.clips.map(\.mediaFile) == ["p.heic"])
+
+        await session.undo()
+        #expect(session.timeline.clips.map(\.mediaFile) == ["a.mov", "p.heic"])
+        await session.undo()
+        #expect(session.timeline.clips.map(\.mediaFile) == ["a.mov"])
+        #expect(!session.canUndo)
+        #expect(try session.project.loadTimeline() == session.timeline, "Undo is saved")
+
+        await session.redo()
+        #expect(session.timeline.clips.count == 2)
+        #expect(session.canRedo)
+    }
+
+    @Test func newEditClearsRedo() async throws {
+        let session = try makeSession()
+        await session.update { $0.insert([.photo(mediaFile: "p.heic")], at: 1) }
+        await session.undo()
+        #expect(session.canRedo)
+        await session.update { $0.insert([.photo(mediaFile: "q.heic")], at: 0) }
+        #expect(!session.canRedo)
+    }
+
+    @Test func dragIsOneUndoStep() async throws {
+        let session = try makeSession()
+        let id = session.timeline.clips[0].id
+        session.beginInteractiveEdit()
+        session.updateInteractiveEdit { $0.trimEnd(ofClip: id, toSource: 3) }
+        session.updateInteractiveEdit { $0.trimEnd(ofClip: id, toSource: 2) }
+        await session.endInteractiveEdit()
+
+        await session.undo()
+        #expect(session.duration == 4)
+        #expect(!session.canUndo)
+    }
+
+    @Test func cancelledDragAddsNoHistory() throws {
+        let session = try makeSession()
+        session.beginInteractiveEdit()
+        session.updateInteractiveEdit { $0.trimEnd(ofClip: $0.clips[0].id, toSource: 1) }
+        session.cancelInteractiveEdit()
+        #expect(!session.canUndo)
+    }
+
+    @Test func historyIsCapped() async throws {
+        let session = try makeSession()
+        for i in 0..<(EditorSession.historyLimit + 5) {
+            await session.update { $0.insert([.photo(mediaFile: "\(i).heic")], at: 0) }
+        }
+        var undos = 0
+        while session.canUndo {
+            await session.undo()
+            undos += 1
+        }
+        #expect(undos == EditorSession.historyLimit)
+    }
+
+    @Test func undoClearsSelectionOfVanishedClip() async throws {
+        let session = try makeSession()
+        await session.update { $0.insert([.photo(mediaFile: "p.heic")], at: 1) }
+        session.select(session.timeline.clips[1].id)
+        await session.undo()
+        #expect(session.selectedClipID == nil)
+    }
+
     @Test func togglePlaybackFlipsState() async throws {
         let session = try makeSession()
         await session.rebuild()
