@@ -42,6 +42,7 @@ struct ComponentGallery: View {
                     Button("Add 3 clips") {}.buttonStyle(.primary).disabled(true)
                     Button("Cancel") {}.buttonStyle(.secondary)
                     Button("Delete Project") {}.buttonStyle(.destructive)
+                    Button("Export") {}.buttonStyle(.primaryCompact)
                     HStack(spacing: Theme.Spacing.sm) {
                         CircleIconButton(systemImage: "xmark", accessibilityLabel: "Close") {}
                         CircleIconButton(systemImage: "arrow.uturn.backward", accessibilityLabel: "Undo") {}

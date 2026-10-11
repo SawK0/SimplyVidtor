@@ -2,30 +2,36 @@ import SwiftUI
 
 // MARK: - Primary / secondary
 
-/// Full-width filled button. `.primary` for the main action on a screen
-/// (Export, Add N clips), `.secondary` for everything else.
+/// Filled button, full width unless compact.
 struct FilledButtonStyle: ButtonStyle {
     enum Kind { case primary, secondary, destructive }
 
     var kind: Kind = .primary
+    var isCompact = false
 
     func makeBody(configuration: Configuration) -> some View {
-        FilledButtonBody(configuration: configuration, kind: kind)
+        FilledButtonBody(configuration: configuration, kind: kind, isCompact: isCompact)
     }
 }
 
 private struct FilledButtonBody: View {
     let configuration: ButtonStyleConfiguration
     let kind: FilledButtonStyle.Kind
+    let isCompact: Bool
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         configuration.label
-            .font(Theme.Typography.headline)
+            .font(isCompact ? Theme.Typography.callout.weight(.semibold) : Theme.Typography.headline)
             .foregroundStyle(foreground)
-            .frame(maxWidth: .infinity, minHeight: Theme.Size.buttonHeight)
-            .padding(.horizontal, Theme.Spacing.md)
-            .background(background, in: .rect(cornerRadius: Theme.Radius.button))
+            .frame(
+                maxWidth: isCompact ? nil : .infinity,
+                minHeight: isCompact ? Theme.Size.compactButtonHeight : Theme.Size.buttonHeight
+            )
+            .padding(.horizontal, isCompact ? Theme.Spacing.sm : Theme.Spacing.md)
+            .background(background, in: .rect(cornerRadius: isCompact ? Theme.Radius.control : Theme.Radius.button))
+            .frame(minHeight: Theme.Size.minTapTarget)
+            .contentShape(.rect)
             .opacity(isEnabled ? (configuration.isPressed ? 0.8 : 1) : 0.4)
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .animation(.snappy(duration: 0.15), value: configuration.isPressed)
@@ -51,11 +57,13 @@ extension ButtonStyle where Self == FilledButtonStyle {
     static var primary: FilledButtonStyle { FilledButtonStyle(kind: .primary) }
     static var secondary: FilledButtonStyle { FilledButtonStyle(kind: .secondary) }
     static var destructive: FilledButtonStyle { FilledButtonStyle(kind: .destructive) }
+    /// Small accent button for nav bars.
+    static var primaryCompact: FilledButtonStyle { FilledButtonStyle(kind: .primary, isCompact: true) }
 }
 
 // MARK: - Circle icon button
 
-/// Round icon-only button used in nav bars and the preview (close, undo, fullscreen).
+/// Round icon-only button.
 struct CircleIconButton: View {
     let systemImage: String
     let accessibilityLabel: LocalizedStringKey
@@ -82,7 +90,7 @@ struct CircleIconButton: View {
 
 // MARK: - Tool button
 
-/// Icon over label, used in the editor's bottom toolbar (Split, Speed, Volume...).
+/// Icon over label, for the editor toolbar.
 struct ToolButton: View {
     let title: LocalizedStringKey
     let systemImage: String
@@ -110,7 +118,7 @@ struct ToolButton: View {
 
 // MARK: - Shared press feedback
 
-/// Dims while pressed and when disabled. For buttons that draw their own chrome.
+/// Dims while pressed or disabled.
 struct PressableButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         PressableBody(configuration: configuration)

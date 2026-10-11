@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Segmented picker
 
-/// Pill-style segmented control (export resolution, picker media filter).
+/// Pill-style segmented control.
 struct SegmentedPicker<Value: Hashable>: View {
     @Binding var selection: Value
     let options: [Value]
@@ -59,8 +59,7 @@ extension ToggleStyle where Self == AccentSwitchToggleStyle {
 
 // MARK: - Slider
 
-/// Thin-track slider. `origin` sets where the accent fill starts, so a
-/// -1...1 adjustment fills outward from 0 instead of from the left edge.
+/// Thin-track slider. The fill starts at `origin` (e.g. 0 for a -1...1 range).
 struct ValueSlider: View {
     @Binding var value: Double
     let range: ClosedRange<Double>
@@ -90,7 +89,7 @@ struct ValueSlider: View {
                 Circle()
                     .fill(Theme.Palette.textPrimary)
                     .frame(width: thumb, height: thumb)
-                    .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+                    .shadow(color: Theme.Palette.shadow, radius: 2, y: 1)
                     .scaleEffect(isDragging ? 1.15 : 1)
                     .offset(x: valueX)
             }
@@ -140,7 +139,7 @@ nonisolated enum SliderMath {
         return (clamp(value, to: range) - range.lowerBound) / span
     }
 
-    /// Value at a track position, snapped to `step` (counted from the lower bound).
+    /// Value at a track position, snapped to `step` from the lower bound.
     static func value(atFraction fraction: Double, in range: ClosedRange<Double>, step: Double? = nil) -> Double {
         let f = min(max(fraction, 0), 1)
         var value = range.lowerBound + f * (range.upperBound - range.lowerBound)

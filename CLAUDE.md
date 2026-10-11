@@ -12,7 +12,7 @@ SimplyVidtor is a SwiftUI iOS video editor. See [PLAN.md](PLAN.md) for scope, ar
 
 ## Commands
 
-Shortcuts: `make build`, `make test`, `make test-unit`, `make test-ui`. Underlying commands:
+Shortcuts: `make build`, `make run`, `make gallery`, `make test`, `make test-unit`, `make test-ui`. Underlying commands:
 
 ```bash
 # Build

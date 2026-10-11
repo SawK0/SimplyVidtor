@@ -16,9 +16,13 @@ enum Theme {
         static let trackAudio = Color(hex: 0x30D5C8)
         static let trackText = Color(hex: 0xFF9F0A)
         static let danger = Color(hex: 0xFF453A)
+
+        /// Behind labels drawn over video or thumbnails.
+        static let scrim = Color.black.opacity(0.6)
+        static let shadow = Color.black.opacity(0.3)
     }
 
-    /// SF Pro via Dynamic Type text styles, so text scales with the user's setting.
+    /// Dynamic Type text styles.
     enum Typography {
         static let display = Font.largeTitle.weight(.bold)
         static let title = Font.title2.weight(.bold)
@@ -55,6 +59,7 @@ enum Theme {
     enum Size {
         static let minTapTarget: CGFloat = 44
         static let buttonHeight: CGFloat = 52
+        static let compactButtonHeight: CGFloat = 34
         static let circleButton: CGFloat = 40
         static let circleIcon: CGFloat = 16
         static let toolIcon: CGFloat = 22
@@ -63,6 +68,8 @@ enum Theme {
         static let segmentInset: CGFloat = 3
         static let sliderTrack: CGFloat = 4
         static let sliderThumb: CGFloat = 24
+        static let timelineClipHeight: CGFloat = 56
+        static let playheadWidth: CGFloat = 2
         static let hairline: CGFloat = 1
     }
 }

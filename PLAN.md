@@ -84,8 +84,11 @@ Chunk 2: design system
 - [ ] Verify type sizes, spacing and component dimensions against Figma page `3:2` (blocked: Figma MCP rate limit when this chunk landed; colors and radii already match CLAUDE.md)
 
 Chunk 3: navigation shell
-- [ ] Root navigation: Projects → Editor (full-screen cover), sheets for picker and export, all with placeholder screens
-- [ ] Remaining folders (`Features/`, `Engine/`, `Model/`) created as their first files land
+- [x] Root navigation via `AppRouter`: Projects → Media Picker sheet → Editor (full-screen cover); editor owns its own sheets (picker on Media or Audio tab, Export)
+- [x] Placeholder screens with `#Preview`: `ProjectsView`, `EditorView`, `MediaPickerSheet`, `ExportSheet`; `ProjectSummary` sample data until SwiftData lands
+- [x] `.primaryCompact` button style for nav bars
+- [x] Tests: `AppRouterTests` (unit), new-project / cancel / audio-tab navigation (UI)
+- [ ] `Engine/` and `Model/` folders created as their first files land (M1/M2)
 - [x] Shared `SimplyVidtor` scheme in `xcshareddata` (Debug for Run/Test, Release for Profile/Archive; `-componentGallery` launch arg, off by default)
 
 ### M1: Projects + Media Picker (Figma 01, 04)
