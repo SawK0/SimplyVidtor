@@ -47,7 +47,8 @@ SimplyVidtor/
 - Store derived values nowhere: clip timeline duration = `sourceDuration / speed`.
 - Normalized (0...1) coordinates for overlay positions and crop rects.
 - Every screen gets a `#Preview` with sample data.
-- Use `Theme` tokens, never raw hex or magic spacing in views.
+- Use `Theme` tokens (`Theme.Palette`, `Typography`, `Spacing`, `Radius`, `Size`), never raw hex or magic numbers in views. Reuse `DesignSystem/` components before writing new chrome; add new ones to `ComponentGallery`.
+- Debug builds launched with `-componentGallery` open the component gallery instead of the app.
 - Tests use Swift Testing (`import Testing`, `@Test`, `#expect`) for unit tests; XCTest only for UI tests.
 - App is dark-only for v1: set `.preferredColorScheme(.dark)` at the root.
 

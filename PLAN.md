@@ -77,9 +77,10 @@ Chunk 1: environment setup
 - [x] Template tests replaced with a unit smoke test and a launch UI test; `make test` green
 
 Chunk 2: design system
-- [ ] Design tokens from Figma: colors, type scale, radii, spacing (`DesignSystem/Theme.swift`)
-- [ ] Shared components: `ToolButton`, `CircleIconButton`, `PrimaryButton`, segmented control, toggle style, slider style
-- [ ] Component gallery `#Preview` to compare against Figma page `3:2`
+- [x] Design tokens: colors, type scale, radii, spacing, sizes (`DesignSystem/Theme.swift`); AccentColor asset set to `#FFCC00`
+- [x] Shared components: `ToolButton`, `CircleIconButton`, `.primary` / `.secondary` / `.destructive` button styles, `SegmentedPicker`, `.accentSwitch` toggle style, `ValueSlider` (with center origin for bipolar values)
+- [x] `ComponentGallery` (preview, or launch with `-componentGallery` in Debug)
+- [ ] Verify type sizes, spacing and component dimensions against Figma page `3:2` (blocked: Figma MCP rate limit when this chunk landed; colors and radii already match CLAUDE.md)
 
 Chunk 3: navigation shell
 - [ ] Root navigation: Projects → Editor (full-screen cover), sheets for picker and export, all with placeholder screens
@@ -102,7 +103,7 @@ Chunk 3: navigation shell
 - [ ] Autosave on change (debounced)
 
 ### M3: Clip tools (Figma 05, 06)
-- [ ] Speed panel: 0.1×–10× slider, keep pitch toggle (Curve tab later)
+- [ ] Speed panel: 0.1×–10× slider on a log scale (so 1× sits mid-track), keep pitch toggle (Curve tab later)
 - [ ] Volume panel, mute
 - [ ] Filters panel: presets with intensity, apply to all
 - [ ] Adjust panel: brightness, contrast, saturation, warmth
