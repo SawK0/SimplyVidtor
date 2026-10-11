@@ -41,4 +41,16 @@ enum TestMedia {
         else { return nil }
         return (width, height)
     }
+
+    /// RGB (0...255) of the centre pixel.
+    static func centerColor(of image: CGImage) -> (r: Int, g: Int, b: Int) {
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let context = CGContext(
+            data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        )!
+        context.draw(image, in: CGRect(x: -CGFloat(image.width) / 2, y: -CGFloat(image.height) / 2,
+                                       width: CGFloat(image.width), height: CGFloat(image.height)))
+        return (Int(pixel[0]), Int(pixel[1]), Int(pixel[2]))
+    }
 }

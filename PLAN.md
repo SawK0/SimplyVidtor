@@ -95,7 +95,7 @@ Chunk 2: timeline view
 - [x] Timeline (`EditorTimelineView`): ruler with zoom-aware ticks, filmstrip clips (`ThumbnailCache`), audio row, fixed center playhead
 - [x] Scroll to scrub with momentum (`TimelineScrollView`, a `UIScrollView` wrapper since offset-based `ScrollView` APIs need iOS 18); chase-seeking keeps one seek in flight
 - [x] Pinch to zoom (15–400 pt/s, `TimelineMetrics`); VoiceOver swipe up/down scrubs by 1 s
-- [ ] Photos render in the preview (custom compositor; they show black for now)
+- [x] Photos render in the preview: `VideoCompositor` (custom `AVVideoCompositing`, Core Image) draws per-clip instructions (video with its orientation, photo, or black); render size from the first video, else 1080×1920
 
 Chunk 3: clip editing
 - [x] Tap to select a clip (accent frame), tap empty track to deselect; selection haptic

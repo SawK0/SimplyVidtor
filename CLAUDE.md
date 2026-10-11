@@ -54,7 +54,7 @@ SimplyVidtor/
 - SwiftData models are listed once in `AppSchema.models`; build every container (app, previews, tests) with `AppSchema.container(inMemory:)`.
 - Media files live in `MediaStore` (Application Support/Media) and are referenced by file name. Read the store from `@Environment(\.mediaStore)`.
 - Present `MediaPickerView` with `.fullScreenCover`, never `.sheet` (the inline photo picker breaks sheet safe areas).
-- AVFoundation: keep the `AVAsset` alive while using its tracks (tracks don't retain it; inserting from an orphaned track fails with -11800). Never end a composition with an empty range; it gets dropped, so fill gaps with `blank.mov`.
+- AVFoundation: keep the `AVAsset` alive while using its tracks (tracks don't retain it; inserting from an orphaned track fails with -11800). Never end a composition with an empty range; it gets dropped, so fill gaps with `blank.mov`. Video composition instructions must tile the whole composition with no gaps: build them from the shared clip boundaries in `CompositionBuilder`.
 - Editor edits go through `EditorSession.update { timeline in ... }`, which saves and rebuilds playback. Drag-driven edits use `beginInteractiveEdit` / `updateInteractiveEdit` / `endInteractiveEdit` so they save and rebuild once.
 - The timeline lives in a `UIScrollView` (`TimelineScrollView`). Don't attach SwiftUI long-press gestures to its content (they block scrolling); add UIKit recognizers on the scroll view instead.
 - Testing per chunk: `make test-unit` plus only the new/affected UI test on one simulator (`-only-testing:` with `-parallel-testing-enabled NO`). Full `make test` at milestone ends. UI tests are not parallelized in the scheme.

@@ -1,14 +1,19 @@
 import AVFoundation
 
-/// Turns a `Timeline` into a composition and audio mix that `AVPlayer` and
-/// the exporter can use. Photos and missing files are filled with a stretched
-/// black clip: AVFoundation drops trailing empty ranges, which would cut the end off.
+/// Turns a `Timeline` into the composition, audio mix and video composition
+/// that `AVPlayer` and the exporter use. Photos and missing files are filled with
+/// a stretched black clip (AVFoundation drops trailing empty ranges) and drawn by
+/// `VideoCompositor`.
 nonisolated enum CompositionBuilder {
     static let timescale: CMTimeScale = 600
+    static let frameRate: Int32 = 30
+    /// Used when the timeline has no video to take a size from.
+    static let defaultRenderSize = CGSize(width: 1080, height: 1920)
 
     struct Output: @unchecked Sendable {
         let composition: AVComposition
         let audioMix: AVAudioMix
+        let videoComposition: AVVideoComposition
     }
 
     @concurrent
@@ -21,39 +26,49 @@ nonisolated enum CompositionBuilder {
         let clipAudio = AVMutableAudioMixInputParameters(track: clipAudioTrack)
         let blank = try await loadTracks(of: blankURL)
         var renderSize: CGSize?
+        var instructions: [ClipInstruction] = []
+
+        // Boundaries are computed once so track segments and instructions meet exactly.
+        let boundaries = (0...timeline.clips.count).map { time(timeline.startTime(ofClipAt: $0)) }
 
         for (index, clip) in timeline.clips.enumerated() {
-            let start = time(timeline.startTime(ofClipAt: index))
-            let range = CMTimeRange(start: start, duration: time(clip.duration))
+            let range = CMTimeRange(start: boundaries[index], end: boundaries[index + 1])
             guard clip.kind == .video,
                   let source = try await loadTracks(of: store.url(for: clip.mediaFile)),
                   let sourceVideo = source.video
             else {
                 try insertBlank(blank, into: videoTrack, range: range)
                 clipAudioTrack.insertEmptyTimeRange(range)
+                let url = store.url(for: clip.mediaFile)
+                let isPhoto = clip.kind == .photo && FileManager.default.fileExists(atPath: url.path(percentEncoded: false))
+                instructions.append(ClipInstruction(timeRange: range, content: isPhoto ? .photo(url) : .blank))
                 continue
             }
 
             let sourceRange = CMTimeRange(start: time(clip.sourceStart), duration: time(clip.sourceDuration))
-            try videoTrack.insertTimeRange(sourceRange, of: sourceVideo, at: start)
-            if renderSize == nil {
-                videoTrack.preferredTransform = source.transform
-                renderSize = try await sourceVideo.load(.naturalSize)
-            }
+            let inserted = CMTimeRange(start: range.start, duration: sourceRange.duration)
+            try videoTrack.insertTimeRange(sourceRange, of: sourceVideo, at: range.start)
             if let audio = source.audio {
-                try clipAudioTrack.insertTimeRange(sourceRange, of: audio, at: start)
+                try clipAudioTrack.insertTimeRange(sourceRange, of: audio, at: range.start)
             } else {
-                clipAudioTrack.insertEmptyTimeRange(CMTimeRange(start: start, duration: sourceRange.duration))
+                clipAudioTrack.insertEmptyTimeRange(inserted)
             }
-            if clip.speed != 1 {
-                let inserted = CMTimeRange(start: start, duration: sourceRange.duration)
+            if inserted.duration != range.duration {
                 videoTrack.scaleTimeRange(inserted, toDuration: range.duration)
                 clipAudioTrack.scaleTimeRange(inserted, toDuration: range.duration)
             }
-            clipAudio.setVolume(Float(clip.volume), at: start)
-        }
+            clipAudio.setVolume(Float(clip.volume), at: range.start)
 
-        if let renderSize { composition.naturalSize = renderSize }
+            let orientation = CGImagePropertyOrientation(source.transform)
+            if renderSize == nil {
+                let size = try await sourceVideo.load(.naturalSize)
+                renderSize = orientation == .left || orientation == .right ? CGSize(width: size.height, height: size.width) : size
+            }
+            instructions.append(ClipInstruction(
+                timeRange: range,
+                content: .video(trackID: videoTrack.trackID, orientation: orientation)
+            ))
+        }
 
         var mixParameters = [clipAudio]
         for item in timeline.audioItems {
@@ -66,9 +81,22 @@ nonisolated enum CompositionBuilder {
             mixParameters.append(volumeParameters(for: item, track: track))
         }
 
+        // Instructions must cover the whole composition, including audio past the last clip.
+        let videoEnd = boundaries.last ?? .zero
+        if composition.duration > videoEnd {
+            instructions.append(ClipInstruction(timeRange: CMTimeRange(start: videoEnd, end: composition.duration), content: .blank))
+        }
+
         let audioMix = AVMutableAudioMix()
         audioMix.inputParameters = mixParameters
-        return Output(composition: composition, audioMix: audioMix)
+
+        let videoComposition = AVMutableVideoComposition()
+        videoComposition.customVideoCompositorClass = VideoCompositor.self
+        videoComposition.instructions = instructions
+        videoComposition.frameDuration = CMTime(value: 1, timescale: frameRate)
+        videoComposition.renderSize = renderSize ?? defaultRenderSize
+
+        return Output(composition: composition, audioMix: audioMix, videoComposition: videoComposition)
     }
 
     static func time(_ seconds: Double) -> CMTime {

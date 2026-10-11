@@ -166,6 +166,7 @@ final class EditorSession {
             let output = try await CompositionBuilder.build(timeline, store: store)
             let item = AVPlayerItem(asset: output.composition)
             item.audioMix = output.audioMix
+            item.videoComposition = output.videoComposition
             observeEnd(of: item)
             player.replaceCurrentItem(with: item)
             buildError = nil
