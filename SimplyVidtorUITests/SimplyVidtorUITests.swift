@@ -50,6 +50,21 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testSwipingTimelineScrubs() throws {
+        createProject()
+        XCTAssertTrue(app.otherElements["timeline.clip.0"].waitForExistence(timeout: 3)
+            || app.images["timeline.clip.0"].exists
+            || app.descendants(matching: .any)["timeline.clip.0"].exists)
+        let timecode = app.staticTexts["editor.timecode"]
+        XCTAssertEqual(timecode.label, "00:00.0 / 00:05.0")
+
+        app.descendants(matching: .any)["editor.timeline"].swipeLeft()
+        let moved = NSPredicate(format: "label != '00:00.0 / 00:05.0'")
+        expectation(for: moved, evaluatedWith: timecode)
+        waitForExpectations(timeout: 3)
+    }
+
+    @MainActor
     func testCancellingPickerStaysOnProjects() throws {
         app.buttons["projects.newProject"].tap()
 

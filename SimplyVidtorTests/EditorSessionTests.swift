@@ -40,6 +40,16 @@ struct EditorSessionTests {
         #expect(session.currentTime == 0)
     }
 
+    @Test func scrubUpdatesTimeImmediatelyAndClamps() async throws {
+        let session = try makeSession()
+        await session.rebuild()
+        session.scrub(to: 1.5)
+        #expect(session.currentTime == 1.5)
+        session.scrub(to: 2)
+        session.scrub(to: 50)
+        #expect(session.currentTime == 4)
+    }
+
     @Test func togglePlaybackFlipsState() async throws {
         let session = try makeSession()
         await session.rebuild()

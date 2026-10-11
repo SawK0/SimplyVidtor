@@ -69,6 +69,9 @@ enum Theme {
         static let sliderTrack: CGFloat = 4
         static let sliderThumb: CGFloat = 24
         static let timelineClipHeight: CGFloat = 56
+        static let audioTrackHeight: CGFloat = 28
+        static let rulerHeight: CGFloat = 28
+        static let clipGap: CGFloat = 2
         static let playheadWidth: CGFloat = 2
         static let hairline: CGFloat = 1
     }

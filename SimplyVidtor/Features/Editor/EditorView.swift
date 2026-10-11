@@ -96,6 +96,10 @@ struct EditorView: View {
                 .foregroundStyle(Theme.Palette.textSecondary)
                 .accessibilityIdentifier("editor.timecode")
             Spacer()
+            CircleIconButton(systemImage: "plus", accessibilityLabel: "Add clip", isProminent: true) {
+                pickerTab = .media
+            }
+            .accessibilityIdentifier("editor.addClip")
         }
         .padding(.horizontal, Theme.Spacing.gutter)
         .padding(.vertical, Theme.Spacing.xs)
@@ -118,29 +122,15 @@ struct EditorView: View {
     }
 
     private var timeline: some View {
-        HStack(spacing: Theme.Spacing.xs) {
-            HStack(spacing: Theme.Spacing.xxs) {
-                ForEach(0..<3, id: \.self) { _ in
-                    RoundedRectangle(cornerRadius: Theme.Radius.clip)
-                        .fill(Theme.Palette.bgSurfaceRaised)
-                }
+        Group {
+            if let session {
+                EditorTimelineView(session: session, store: store)
+            } else {
+                Color.clear
             }
-            .overlay {
-                Rectangle()
-                    .fill(Theme.Palette.accent)
-                    .frame(width: Theme.Size.playheadWidth)
-            }
-            .accessibilityElement()
-            .accessibilityLabel("Timeline")
-
-            CircleIconButton(systemImage: "plus", accessibilityLabel: "Add clip", isProminent: true) {
-                pickerTab = .media
-            }
-            .accessibilityIdentifier("editor.addClip")
         }
-        .frame(height: Theme.Size.timelineClipHeight)
-        .padding(.horizontal, Theme.Spacing.gutter)
-        .padding(.vertical, Theme.Spacing.md)
+        .frame(height: Theme.Size.rulerHeight + Theme.Size.timelineClipHeight + Theme.Size.audioTrackHeight + 2 * Theme.Spacing.xs)
+        .padding(.vertical, Theme.Spacing.sm)
     }
 
     private var toolbar: some View {

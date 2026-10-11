@@ -14,6 +14,8 @@ final class EditorSession {
     @ObservationIgnored private let store: MediaStore
     @ObservationIgnored private var timeObserver: Any?
     @ObservationIgnored private var endObserver: (any NSObjectProtocol)?
+    @ObservationIgnored private var isSeeking = false
+    @ObservationIgnored private var pendingSeek: Double?
 
     var duration: Double { timeline.duration }
 
@@ -76,6 +78,28 @@ final class EditorSession {
         let target = min(max(seconds, 0), duration)
         currentTime = target
         await player.seek(to: CompositionBuilder.time(target), toleranceBefore: .zero, toleranceAfter: .zero)
+    }
+
+    /// For continuous scrubbing: updates the time immediately and keeps only
+    /// one seek in flight, jumping to the latest target when it lands.
+    func scrub(to seconds: Double) {
+        let target = min(max(seconds, 0), duration)
+        currentTime = target
+        pendingSeek = target
+        if !isSeeking { seekToPending() }
+    }
+
+    private func seekToPending() {
+        guard let target = pendingSeek else {
+            isSeeking = false
+            return
+        }
+        pendingSeek = nil
+        isSeeking = true
+        Task {
+            await player.seek(to: CompositionBuilder.time(target), toleranceBefore: .zero, toleranceAfter: .zero)
+            seekToPending()
+        }
     }
 
     private func playerTimeChanged(_ seconds: Double) {

@@ -92,7 +92,10 @@ Chunk 1: playback
 - [ ] Fullscreen preview
 
 Chunk 2: timeline view
-- [ ] Timeline: ruler, filmstrip clips, fixed center playhead, scroll to scrub, pinch to zoom
+- [x] Timeline (`EditorTimelineView`): ruler with zoom-aware ticks, filmstrip clips (`ThumbnailCache`), audio row, fixed center playhead
+- [x] Scroll to scrub with momentum (`TimelineScrollView`, a `UIScrollView` wrapper since offset-based `ScrollView` APIs need iOS 18); chase-seeking keeps one seek in flight
+- [x] Pinch to zoom (15–400 pt/s, `TimelineMetrics`); VoiceOver swipe up/down scrubs by 1 s
+- [ ] Photos render in the preview (custom compositor; they show black for now)
 
 Chunk 3: clip editing
 - [ ] Select clip, trim handles, reorder by long-press drag
