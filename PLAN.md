@@ -40,31 +40,9 @@ Design source: [Figma: iOS Video Editor](https://www.figma.com/design/sjymzmXSpW
 - `VideoCompositor: AVVideoCompositing` reads those instructions, applies Core Image filters, blends overlapping frames, and draws text/sticker layers (pre-rendered to `CIImage`).
 - The same composition feeds `AVPlayerItem` (preview) and `AVAssetExportSession` (export), so what you see is what you export.
 
-### Core model (draft)
+### Core model
 
-```swift
-struct Timeline: Codable {
-    var clips: [Clip]              // ordered, back to back
-    var textItems: [TextItem]
-    var audioItems: [AudioItem]
-    var settings: ExportSettings   // resolution, fps, HDR
-}
-
-struct Clip: Codable, Identifiable {
-    let id: UUID
-    var mediaFile: String          // filename in app container
-    var sourceStart: Double        // seconds into the source
-    var sourceDuration: Double
-    var speed: Double = 1          // 0.1...10
-    var volume: Double = 1
-    var filter: FilterPreset?
-    var filterIntensity: Double = 0.8
-    var crop: CGRect?              // normalized
-    var transitionAfter: Transition?
-}
-```
-
-Timeline durations are derived (`sourceDuration / speed`), never stored, so split, trim and speed stay consistent.
+Lives in `Model/`: `Timeline`, `Clip`, `AudioItem` (value types, `nonisolated` so the engine can read them off the main actor) and the SwiftData `Project`, which stores the timeline as JSON `Data`. Timeline durations are derived (`sourceDuration / speed`), never stored, so split, trim and speed stay consistent. Text items and export settings join the timeline in M4 / M5.
 
 ## Milestones
 
@@ -93,12 +71,14 @@ Chunk 3: navigation shell
 
 ### M1: Projects + Media Picker (Figma 01, 04)
 - [ ] Projects screen: New Project card, quick actions, recent projects grid
-- [ ] SwiftData `Project` model, create / rename / delete / duplicate
+- [x] `Timeline` / `Clip` / `AudioItem` value types with split, trim, speed, insert, duplicate, remove, move (`TimelineTests`)
+- [x] SwiftData `Project` model: timeline as JSON, throwing load so a bad decode is never autosaved, duplicate (`ProjectTests`)
+- [ ] Projects screen on real data: create / rename / delete / duplicate
 - [ ] Media picker sheet with two tabs (`SegmentedPicker`): **Videos & Photos** and **Audio**
 - [ ] Videos & Photos tab: inline `PhotosPicker` (`.photosPickerStyle(.inline)`, `selectionBehavior: .ordered`), All / Videos / Photos filter, own header and "Add N clips" button
 - [ ] Audio tab: list of imported audio with tap-to-preview (`AVPlayer`), single select, "Import from Files" (`.fileImporter`), "Extract from video" (pick a video, keep its audio track)
 - [ ] Picked audio goes on the audio track at 0:00; clips go on the video track
-- [ ] Import pipeline: copy into container, generate cover thumbnail
+- [ ] Import pipeline: copy into the app's media folder, generate cover thumbnail. Duplicated projects share media files, so delete files only when no project references them
 - [ ] Photos (stills) become clips with a default 3 s duration
 
 ### M2: Editor core (Figma 02)

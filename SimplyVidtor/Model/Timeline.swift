@@ -1,0 +1,111 @@
+import Foundation
+
+/// The edit itself: clips back to back on one video track, plus audio.
+/// Mutations clamp to valid values instead of failing.
+nonisolated struct Timeline: Codable, Hashable, Sendable {
+    var clips: [Clip] = []
+    var audioItems: [AudioItem] = []
+
+    var duration: Double {
+        clips.reduce(0) { $0 + $1.duration }
+    }
+
+    func index(ofClip id: Clip.ID) -> Int? {
+        clips.firstIndex { $0.id == id }
+    }
+
+    func startTime(ofClipAt index: Int) -> Double {
+        clips[..<index].reduce(0) { $0 + $1.duration }
+    }
+
+    func timeRange(ofClipAt index: Int) -> Range<Double> {
+        let start = startTime(ofClipAt: index)
+        return start..<(start + clips[index].duration)
+    }
+
+    /// The clip playing at `time`. A boundary belongs to the clip that starts
+    /// there; the very end belongs to the last clip.
+    func clipIndex(at time: Double) -> Int? {
+        guard !clips.isEmpty, time >= 0, time <= duration else { return nil }
+        var start = 0.0
+        for (index, clip) in clips.enumerated() {
+            let end = start + clip.duration
+            if time < end { return index }
+            start = end
+        }
+        return clips.count - 1
+    }
+
+    // MARK: - Editing
+
+    mutating func insert(_ newClips: [Clip], at index: Int) {
+        clips.insert(contentsOf: newClips, at: min(max(index, 0), clips.count))
+    }
+
+    /// Splits the clip under `time`. Returns the id of the new right-hand clip,
+    /// or `nil` when either half would be shorter than `Clip.minimumDuration`.
+    @discardableResult
+    mutating func split(at time: Double) -> Clip.ID? {
+        guard let index = clipIndex(at: time) else { return nil }
+        let offset = time - startTime(ofClipAt: index)
+        let clip = clips[index]
+        guard offset >= Clip.minimumDuration, clip.duration - offset >= Clip.minimumDuration else { return nil }
+
+        let sourceOffset = offset * clip.speed
+        var right = clip
+        right.id = UUID()
+        right.sourceStart += sourceOffset
+        right.sourceDuration -= sourceOffset
+        clips[index].sourceDuration = sourceOffset
+        clips.insert(right, at: index + 1)
+        return right.id
+    }
+
+    /// Moves the clip's in-point, keeping its out-point fixed.
+    mutating func trimStart(ofClip id: Clip.ID, toSource newStart: Double) {
+        guard let index = index(ofClip: id) else { return }
+        let clip = clips[index]
+        let latest = clip.sourceEnd - Clip.minimumDuration * clip.speed
+        let start = min(max(newStart, 0), latest)
+        clips[index].sourceStart = start
+        clips[index].sourceDuration = clip.sourceEnd - start
+    }
+
+    /// Moves the clip's out-point, keeping its in-point fixed.
+    mutating func trimEnd(ofClip id: Clip.ID, toSource newEnd: Double) {
+        guard let index = index(ofClip: id) else { return }
+        let clip = clips[index]
+        let earliest = clip.sourceStart + Clip.minimumDuration * clip.speed
+        let end = min(max(newEnd, earliest), clip.mediaDuration ?? .infinity)
+        clips[index].sourceDuration = end - clip.sourceStart
+    }
+
+    mutating func setSpeed(_ speed: Double, ofClip id: Clip.ID) {
+        guard let index = index(ofClip: id) else { return }
+        // Never let a speed-up push the clip under the minimum length.
+        let fastest = min(Clip.speedRange.upperBound, clips[index].sourceDuration / Clip.minimumDuration)
+        let range = Clip.speedRange.lowerBound...max(fastest, Clip.speedRange.lowerBound)
+        clips[index].speed = min(max(speed, range.lowerBound), range.upperBound)
+    }
+
+    /// Inserts a copy right after the original. Returns the copy's id.
+    @discardableResult
+    mutating func duplicateClip(_ id: Clip.ID) -> Clip.ID? {
+        guard let index = index(ofClip: id) else { return nil }
+        var copy = clips[index]
+        copy.id = UUID()
+        clips.insert(copy, at: index + 1)
+        return copy.id
+    }
+
+    mutating func removeClip(_ id: Clip.ID) {
+        clips.removeAll { $0.id == id }
+    }
+
+    /// Moves a clip so it ends up at `destination` in the resulting array.
+    mutating func moveClip(_ id: Clip.ID, to destination: Int) {
+        guard let index = index(ofClip: id) else { return }
+        let clip = clips.remove(at: index)
+        clips.insert(clip, at: min(max(destination, 0), clips.count))
+    }
+}
