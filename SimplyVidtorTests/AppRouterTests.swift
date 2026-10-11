@@ -3,25 +3,25 @@ import Testing
 
 @MainActor
 struct AppRouterTests {
-    @Test func newProjectOpensEditorOnlyAfterSheetDismisses() throws {
+    @Test func newProjectOpensEditorOnlyAfterPickerDismisses() throws {
         let router = AppRouter()
         router.startNewProject()
-        #expect(router.sheet == .newProjectPicker)
+        #expect(router.modal == .newProjectPicker)
 
         let project = try Project(name: "New")
         router.finishNewProject(project)
-        #expect(router.sheet == nil)
+        #expect(router.modal == nil)
         #expect(router.openProject == nil)
 
-        router.sheetDidDismiss()
+        router.modalDidDismiss()
         #expect(router.openProject === project)
     }
 
     @Test func cancellingThePickerDoesNotOpenTheEditor() {
         let router = AppRouter()
         router.startNewProject()
-        router.cancelSheet()
-        router.sheetDidDismiss()
+        router.cancelModal()
+        router.modalDidDismiss()
         #expect(router.openProject == nil)
     }
 
@@ -29,13 +29,13 @@ struct AppRouterTests {
         let router = AppRouter()
         router.startNewProject()
         router.finishNewProject(try Project(name: "First"))
-        router.sheetDidDismiss()
+        router.modalDidDismiss()
         router.closeEditor()
 
         // A later picker that is swiped away must not resurrect the old project.
         router.startNewProject()
-        router.sheet = nil
-        router.sheetDidDismiss()
+        router.modal = nil
+        router.modalDidDismiss()
         #expect(router.openProject == nil)
     }
 

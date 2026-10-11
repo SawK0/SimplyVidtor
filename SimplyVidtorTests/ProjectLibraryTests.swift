@@ -6,6 +6,7 @@ import Testing
 @MainActor
 struct ProjectLibraryTests {
     private let container: ModelContainer
+    private let store = MediaStore.temporary()
     private let library: ProjectLibrary
 
     init() throws {
@@ -13,7 +14,7 @@ struct ProjectLibraryTests {
             for: Project.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
-        library = ProjectLibrary(context: container.mainContext)
+        library = ProjectLibrary(context: container.mainContext, store: store)
     }
 
     private func allProjects() throws -> [Project] {
@@ -63,5 +64,48 @@ struct ProjectLibraryTests {
         let remaining = try allProjects()
         #expect(remaining.count == 1)
         #expect(remaining.first === keep)
+    }
+
+    // MARK: - Media
+
+    private func exists(_ file: String) -> Bool {
+        FileManager.default.fileExists(atPath: store.url(for: file).path(percentEncoded: false))
+    }
+
+    @Test func coverComesFromFirstClip() async throws {
+        let clip = try MediaImporter.photoClip(writing: TestMedia.pngData(), extension: "png", to: store)
+        let project = try library.create(timeline: Timeline(clips: [clip]))
+        try await library.updateCover(of: project)
+        let cover = try #require(project.coverImageFile)
+        #expect(exists(cover))
+    }
+
+    @Test func deletingAProjectRemovesOnlyItsUnsharedMedia() throws {
+        let shared = try store.write(Data("s".utf8), extension: "mov")
+        let own = try store.write(Data("o".utf8), extension: "mov")
+        let orphan = try store.write(Data("x".utf8), extension: "mov")
+
+        let keep = try library.create(timeline: Timeline(clips: [.video(mediaFile: shared, duration: 1)]))
+        let remove = try library.create(timeline: Timeline(clips: [
+            .video(mediaFile: shared, duration: 1),
+            .video(mediaFile: own, duration: 1),
+        ]))
+        _ = keep
+
+        try library.delete(remove)
+        #expect(exists(shared))
+        #expect(!exists(own))
+        #expect(!exists(orphan))
+    }
+
+    @Test func duplicatesShareMediaUntilBothAreDeleted() throws {
+        let file = try store.write(Data("v".utf8), extension: "mov")
+        let original = try library.create(timeline: Timeline(clips: [.video(mediaFile: file, duration: 1)]))
+        let copy = try library.duplicate(original)
+
+        try library.delete(original)
+        #expect(exists(file))
+        try library.delete(copy)
+        #expect(!exists(file))
     }
 }

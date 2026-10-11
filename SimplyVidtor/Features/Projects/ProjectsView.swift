@@ -6,6 +6,7 @@ struct ProjectsView: View {
     let onOpen: (Project) -> Void
 
     @Environment(\.modelContext) private var context
+    @Environment(\.mediaStore) private var store
     @Query(sort: \Project.modifiedAt, order: .reverse) private var projects: [Project]
 
     @State private var renaming: Project?
@@ -13,7 +14,7 @@ struct ProjectsView: View {
     @State private var deleting: Project?
 
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: Theme.Spacing.sm)]
-    private var library: ProjectLibrary { ProjectLibrary(context: context) }
+    private var library: ProjectLibrary { ProjectLibrary(context: context, store: store) }
 
     var body: some View {
         ScrollView {
@@ -120,14 +121,10 @@ private struct ProjectCard: View {
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                RoundedRectangle(cornerRadius: Theme.Radius.card)
-                    .fill(Theme.Palette.bgSurfaceRaised)
+                Theme.Palette.bgSurfaceRaised
                     .aspectRatio(9 / 16, contentMode: .fit)
-                    .overlay {
-                        Image(systemName: "film")
-                            .font(Theme.Typography.title)
-                            .foregroundStyle(Theme.Palette.textSecondary)
-                    }
+                    .overlay { CoverImage(file: project.coverImageFile) }
+                    .clipShape(.rect(cornerRadius: Theme.Radius.card))
                     .overlay(alignment: .bottomTrailing) {
                         Text(Duration.seconds(duration), format: .time(pattern: .minuteSecond))
                             .font(Theme.Typography.timecode)
@@ -152,6 +149,36 @@ private struct ProjectCard: View {
 
     private var duration: Double {
         (try? project.loadTimeline().duration) ?? 0
+    }
+}
+
+private struct CoverImage: View {
+    let file: String?
+
+    @Environment(\.mediaStore) private var store
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Image(systemName: "film")
+                    .font(Theme.Typography.title)
+                    .foregroundStyle(Theme.Palette.textSecondary)
+            }
+        }
+        .accessibilityHidden(true)
+        .task(id: file) {
+            image = if let file { await Self.load(store.url(for: file)) } else { nil }
+        }
+    }
+
+    @concurrent
+    private nonisolated static func load(_ url: URL) async -> UIImage? {
+        await UIImage(contentsOfFile: url.path(percentEncoded: false))?.byPreparingForDisplay()
     }
 }
 

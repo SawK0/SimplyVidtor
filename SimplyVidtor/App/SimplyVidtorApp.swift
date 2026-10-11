@@ -3,7 +3,17 @@ import SwiftUI
 
 @main
 struct SimplyVidtorApp: App {
+    private static let inMemory: Bool = {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-inMemoryStore")
+        #else
+        false
+        #endif
+    }()
+
     private let container = makeContainer()
+    /// A throwaway store with `-inMemoryStore`, so cleanup can't delete real media.
+    private let mediaStore = inMemory ? MediaStore.temporary() : .standard
 
     var body: some Scene {
         WindowGroup {
@@ -11,14 +21,10 @@ struct SimplyVidtorApp: App {
                 .preferredColorScheme(.dark)
         }
         .modelContainer(container)
+        .environment(\.mediaStore, mediaStore)
     }
 
     private static func makeContainer() -> ModelContainer {
-        #if DEBUG
-        let inMemory = ProcessInfo.processInfo.arguments.contains("-inMemoryStore")
-        #else
-        let inMemory = false
-        #endif
         do {
             return try ModelContainer(
                 for: Project.self,

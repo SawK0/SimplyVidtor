@@ -74,12 +74,14 @@ Chunk 3: navigation shell
 - [x] `Timeline` / `Clip` / `AudioItem` value types with split, trim, speed, insert, duplicate, remove, move (`TimelineTests`)
 - [x] SwiftData `Project` model: timeline as JSON, throwing load so a bad decode is never autosaved, duplicate (`ProjectTests`)
 - [x] Projects screen on real data (`@Query`, newest first, empty state); create via picker, rename / duplicate / delete from the context menu (`ProjectLibrary`, `ProjectLibraryTests`, UI test)
-- [ ] Media picker sheet with two tabs (`SegmentedPicker`): **Videos & Photos** and **Audio**
-- [ ] Videos & Photos tab: inline `PhotosPicker` (`.photosPickerStyle(.inline)`, `selectionBehavior: .ordered`), All / Videos / Photos filter, own header and "Add N clips" button
+- [x] Media picker with two tabs (`SegmentedPicker`): **Videos & Photos** and **Audio**. Full-screen cover, not a sheet: inside a sheet the inline picker strips the safe area
+- [x] Videos & Photos tab: inline `PhotosPicker` (`.photosPickerStyle(.inline)`, `selectionBehavior: .continuousAndOrdered` so taps reach the app), All / Videos / Photos filter, own header and "Add N clips" button
 - [ ] Audio tab: list of imported audio with tap-to-preview (`AVPlayer`), single select, "Import from Files" (`.fileImporter`), "Extract from video" (pick a video, keep its audio track)
 - [ ] Picked audio goes on the audio track at 0:00; clips go on the video track
-- [ ] Import pipeline: copy into the app's media folder, generate cover thumbnail. Duplicated projects share media files, so delete files only when no project references them
-- [ ] Photos (stills) become clips with a default 3 s duration
+- [x] Import pipeline (`MediaImporter`, `MediaStore`): copy into the app's media folder in selection order, partial-failure alert, cancel on close
+- [x] Cover thumbnail from the first clip (`Thumbnailer`), shown on project cards
+- [x] Unused media removed on delete and at launch; skipped if any timeline fails to decode
+- [x] Photos (stills) become clips with a default 3 s duration
 
 ### M2: Editor core (Figma 02)
 - [ ] Preview player with play/pause, timecode, fullscreen
@@ -118,7 +120,8 @@ Chunk 3: navigation shell
 
 - **Unit (Swift Testing):** timeline math (split, trim, speed, total duration), composition building, export size estimate.
 - **UI (XCTest):** create project → pick clips → split → export happy path, using bundled sample videos.
-- Bundle 2–3 short sample clips in the test target so tests do not need the photo library.
+- Sample media lives in `SimplyVidtorTests/Resources` (`sample-2s.mov`); `TestMedia` generates images.
+- `PhotoImportUITests` drives the real photo picker and skips unless the simulator library has the sample video (`xcrun simctl addmedia booted SimplyVidtorTests/Resources/sample-2s.mov <photo>`).
 
 ## Open questions
 

@@ -5,19 +5,10 @@ struct EditorView: View {
     let project: Project
     let onClose: () -> Void
 
-    private enum Sheet: Identifiable {
-        case picker(MediaPickerTab)
-        case export
-
-        var id: String {
-            switch self {
-            case .picker(let tab): "picker-\(tab.rawValue)"
-            case .export: "export"
-            }
-        }
-    }
-
-    @State private var sheet: Sheet?
+    @State private var pickerTab: MediaPickerTab?
+    @State private var isExporting = false
+    @Environment(\.modelContext) private var context
+    @Environment(\.mediaStore) private var store
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,13 +19,11 @@ struct EditorView: View {
         }
         .foregroundStyle(Theme.Palette.textPrimary)
         .background(Theme.Palette.bgBase)
-        .sheet(item: $sheet) { sheet in
-            switch sheet {
-            case .picker(let tab):
-                MediaPickerSheet(tab: tab, onCancel: { self.sheet = nil }, onAdd: { self.sheet = nil })
-            case .export:
-                ExportSheet(onClose: { self.sheet = nil })
-            }
+        .fullScreenCover(item: $pickerTab) { tab in
+            MediaPickerView(tab: tab, onCancel: { pickerTab = nil }, onAdd: append)
+        }
+        .sheet(isPresented: $isExporting) {
+            ExportSheet(onClose: { isExporting = false })
         }
     }
 
@@ -46,7 +35,7 @@ struct EditorView: View {
                 .font(Theme.Typography.headline)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity)
-            Button("Export") { sheet = .export }
+            Button("Export") { isExporting = true }
                 .buttonStyle(.primaryCompact)
                 .accessibilityIdentifier("editor.export")
         }
@@ -70,6 +59,17 @@ struct EditorView: View {
         .frame(maxHeight: .infinity)
     }
 
+    private func append(_ clips: [Clip]) {
+        pickerTab = nil
+        guard var timeline = try? project.loadTimeline() else { return }
+        let hadClips = !timeline.clips.isEmpty
+        timeline.insert(clips, at: timeline.clips.count)
+        try? project.save(timeline)
+        if !hadClips {
+            Task { try? await ProjectLibrary(context: context, store: store).updateCover(of: project) }
+        }
+    }
+
     private var duration: Double {
         (try? project.loadTimeline().duration) ?? 0
     }
@@ -91,7 +91,7 @@ struct EditorView: View {
             .accessibilityLabel("Timeline")
 
             CircleIconButton(systemImage: "plus", accessibilityLabel: "Add clip", isProminent: true) {
-                sheet = .picker(.media)
+                pickerTab = .media
             }
             .accessibilityIdentifier("editor.addClip")
         }
@@ -109,7 +109,7 @@ struct EditorView: View {
                 ToolButton(title: "Filters", systemImage: "camera.filters") {}
                 ToolButton(title: "Adjust", systemImage: "slider.horizontal.3") {}
                 ToolButton(title: "Text", systemImage: "textformat") {}
-                ToolButton(title: "Audio", systemImage: "music.note") { sheet = .picker(.audio) }
+                ToolButton(title: "Audio", systemImage: "music.note") { pickerTab = .audio }
                     .accessibilityIdentifier("editor.tool.audio")
                 ToolButton(title: "Crop", systemImage: "crop") {}
                 ToolButton(title: "Duplicate", systemImage: "plus.square.on.square") {}

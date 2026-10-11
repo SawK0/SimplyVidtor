@@ -1,35 +1,35 @@
 import Observation
 
-/// App-level navigation. Editor sheets live in the editor.
+/// App-level navigation. The editor presents its own picker and export.
 @Observable
 final class AppRouter {
-    enum Sheet: String, Identifiable {
+    enum Modal: String, Identifiable {
         case newProjectPicker
         var id: Self { self }
     }
 
-    var sheet: Sheet?
+    var modal: Modal?
     var openProject: Project?
 
-    /// Opened after the sheet dismisses; SwiftUI drops a cover presented mid-dismiss.
+    /// Opened after the picker dismisses; SwiftUI drops a cover presented mid-dismiss.
     private var pendingProject: Project?
 
     func startNewProject() {
-        sheet = .newProjectPicker
+        modal = .newProjectPicker
     }
 
     func finishNewProject(_ project: Project) {
         pendingProject = project
-        sheet = nil
+        modal = nil
     }
 
-    func cancelSheet() {
+    func cancelModal() {
         pendingProject = nil
-        sheet = nil
+        modal = nil
     }
 
-    /// Call from the sheet's `onDismiss`.
-    func sheetDidDismiss() {
+    /// Call from the picker's `onDismiss`.
+    func modalDidDismiss() {
         if let project = pendingProject {
             pendingProject = nil
             openProject = project

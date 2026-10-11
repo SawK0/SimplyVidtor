@@ -6,7 +6,7 @@ final class SimplyVidtorUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["-inMemoryStore"]
+        app.launchArguments = ["-inMemoryStore", "-stubMediaPicker"]
         app.launch()
     }
 

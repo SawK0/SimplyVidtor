@@ -1,9 +1,10 @@
 import Foundation
 import SwiftData
 
-/// Create, rename, duplicate and delete projects in a model context.
+/// Create, rename, duplicate and delete projects, and keep the media store tidy.
 struct ProjectLibrary {
     let context: ModelContext
+    let store: MediaStore
 
     @discardableResult
     func create(timeline: Timeline = Timeline()) throws -> Project {
@@ -33,5 +34,26 @@ struct ProjectLibrary {
     func delete(_ project: Project) throws {
         context.delete(project)
         try context.save()
+        try removeUnusedMedia()
+    }
+
+    /// Renders a cover from the first clip.
+    func updateCover(of project: Project) async throws {
+        guard let first = try project.loadTimeline().clips.first else { return }
+        project.coverImageFile = try await Thumbnailer.makeCover(for: first, in: store)
+        try context.save()
+    }
+
+    /// Deletes media no project refers to (left by deletes or cancelled imports).
+    /// Does nothing if any timeline fails to decode, since its files can't be accounted for.
+    func removeUnusedMedia() throws {
+        var referenced = Set<String>()
+        for project in try context.fetch(FetchDescriptor<Project>()) {
+            guard let timeline = try? project.loadTimeline() else { return }
+            referenced.formUnion(timeline.clips.map(\.mediaFile))
+            referenced.formUnion(timeline.audioItems.map(\.mediaFile))
+            if let cover = project.coverImageFile { referenced.insert(cover) }
+        }
+        try store.removeFiles(notIn: referenced)
     }
 }

@@ -4,6 +4,7 @@ import SwiftUI
 struct RootView: View {
     @State private var router = AppRouter()
     @Environment(\.modelContext) private var context
+    @Environment(\.mediaStore) private var store
 
     var body: some View {
         #if DEBUG
@@ -22,12 +23,12 @@ struct RootView: View {
             onNewProject: router.startNewProject,
             onOpen: router.open
         )
-        .sheet(item: $router.sheet, onDismiss: router.sheetDidDismiss) { sheet in
-            switch sheet {
+        .fullScreenCover(item: $router.modal, onDismiss: router.modalDidDismiss) { modal in
+            switch modal {
             case .newProjectPicker:
-                MediaPickerSheet(
+                MediaPickerView(
                     tab: .media,
-                    onCancel: router.cancelSheet,
+                    onCancel: router.cancelModal,
                     onAdd: createProject
                 )
             }
@@ -35,13 +36,18 @@ struct RootView: View {
         .fullScreenCover(item: $router.openProject) { project in
             EditorView(project: project, onClose: router.closeEditor)
         }
+        .task { try? library.removeUnusedMedia() }
     }
 
-    private func createProject() {
+    private var library: ProjectLibrary { ProjectLibrary(context: context, store: store) }
+
+    private func createProject(with clips: [Clip]) {
         do {
-            router.finishNewProject(try ProjectLibrary(context: context).create())
+            let project = try library.create(timeline: Timeline(clips: clips))
+            router.finishNewProject(project)
+            Task { try? await library.updateCover(of: project) }
         } catch {
-            router.cancelSheet()
+            router.cancelModal()
         }
     }
 }

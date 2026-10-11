@@ -6,7 +6,7 @@ SimplyVidtor is a SwiftUI iOS video editor. See [PLAN.md](PLAN.md) for scope, ar
 
 - Xcode 26.6, iOS deployment target **17.0** (all targets), iPhone + iPad (`TARGETED_DEVICE_FAMILY = 1,2`). No Mac Catalyst, Designed for iPad on Mac, or visionOS.
 - Guard iOS 18+ APIs (Liquid Glass, newer AVFoundation) with `if #available` and give iOS 17 a fallback.
-- Swift 5 language mode with **`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`** and approachable concurrency. Everything is main-actor by default: mark heavy work (thumbnailing, waveform, export) `nonisolated` or move it into an `actor`.
+- Swift 5 language mode with **`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`** and approachable concurrency. Everything is main-actor by default. Value types the engine reads are `nonisolated`. A `nonisolated async` function still runs on the caller's actor, so mark heavy async work (thumbnailing, waveform, export) **`@concurrent`**.
 - Xcode project uses **synchronized folders** (objectVersion 77). New files dropped into `SimplyVidtor/`, `SimplyVidtorTests/` or `SimplyVidtorUITests/` are picked up automatically; do not hand-edit `project.pbxproj` to add files.
 - Info.plist is generated. Add keys as `INFOPLIST_KEY_*` build settings, not a plist file.
 - Bundle ID `sawko.SimplyVidtor`.
@@ -50,7 +50,9 @@ SimplyVidtor/
 - Normalized (0...1) coordinates for overlay positions and crop rects.
 - Every screen gets a `#Preview` with sample data.
 - Use `Theme` tokens (`Theme.Palette`, `Typography`, `Spacing`, `Radius`, `Size`), never raw hex or magic numbers in views. Reuse `DesignSystem/` components before writing new chrome; add new ones to `ComponentGallery`.
-- Debug launch arguments (also in the shared scheme, off by default): `-componentGallery` opens the component gallery; `-inMemoryStore` uses a throwaway SwiftData store (UI tests always pass it).
+- Debug launch arguments (also in the shared scheme, off by default): `-componentGallery` opens the component gallery; `-inMemoryStore` uses a throwaway SwiftData store and media folder (UI tests always pass it); `-stubMediaPicker` makes the picker's Add return a placeholder clip without a selection.
+- Media files live in `MediaStore` (Application Support/Media) and are referenced by file name. Read the store from `@Environment(\.mediaStore)`.
+- Present `MediaPickerView` with `.fullScreenCover`, never `.sheet` (the inline photo picker breaks sheet safe areas).
 - Previews use `PreviewData.container()` for sample projects.
 - Tests use Swift Testing (`import Testing`, `@Test`, `#expect`) for unit tests; XCTest only for UI tests.
 - App is dark-only for v1: set `.preferredColorScheme(.dark)` at the root.
