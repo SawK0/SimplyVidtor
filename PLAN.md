@@ -20,7 +20,7 @@ Design source: [Figma: iOS Video Editor](https://www.figma.com/design/sjymzmXSpW
 
 | Layer | Choice | Notes |
 |---|---|---|
-| UI | SwiftUI | iOS 26.5+, dark appearance only for v1 |
+| UI | SwiftUI | iOS 17+, dark appearance only for v1; iOS 26 features behind `#available` |
 | State | `@Observable` models | One `EditorSession` per open project |
 | Persistence | SwiftData | `Project` row + timeline stored as a Codable value |
 | Media import | One sheet, two tabs: inline `PhotosPicker` for videos/photos; custom Audio tab | Copy picked files into the app container so projects survive library changes |

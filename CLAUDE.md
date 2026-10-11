@@ -4,7 +4,8 @@ SimplyVidtor is a SwiftUI iOS video editor. See [PLAN.md](PLAN.md) for scope, ar
 
 ## Project facts
 
-- Xcode 26.6, iOS deployment target **26.5**, iPhone + iPad (`TARGETED_DEVICE_FAMILY = 1,2`).
+- Xcode 26.6, iOS deployment target **17.0** (all targets), iPhone + iPad (`TARGETED_DEVICE_FAMILY = 1,2`). No Mac Catalyst, Designed for iPad on Mac, or visionOS.
+- Guard iOS 18+ APIs (Liquid Glass, newer AVFoundation) with `if #available` and give iOS 17 a fallback.
 - Swift 5 language mode with **`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`** and approachable concurrency. Everything is main-actor by default: mark heavy work (thumbnailing, waveform, export) `nonisolated` or move it into an `actor`.
 - Xcode project uses **synchronized folders** (objectVersion 77). New files dropped into `SimplyVidtor/`, `SimplyVidtorTests/` or `SimplyVidtorUITests/` are picked up automatically; do not hand-edit `project.pbxproj` to add files.
 - Info.plist is generated. Add keys as `INFOPLIST_KEY_*` build settings, not a plist file.
