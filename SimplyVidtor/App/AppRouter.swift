@@ -9,16 +9,16 @@ final class AppRouter {
     }
 
     var sheet: Sheet?
-    var openProject: ProjectSummary?
+    var openProject: Project?
 
     /// Opened after the sheet dismisses; SwiftUI drops a cover presented mid-dismiss.
-    private var pendingProject: ProjectSummary?
+    private var pendingProject: Project?
 
     func startNewProject() {
         sheet = .newProjectPicker
     }
 
-    func finishNewProject(_ project: ProjectSummary) {
+    func finishNewProject(_ project: Project) {
         pendingProject = project
         sheet = nil
     }
@@ -36,7 +36,7 @@ final class AppRouter {
         }
     }
 
-    func open(_ project: ProjectSummary) {
+    func open(_ project: Project) {
         openProject = project
     }
 

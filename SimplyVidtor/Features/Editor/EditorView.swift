@@ -1,7 +1,8 @@
+import SwiftData
 import SwiftUI
 
 struct EditorView: View {
-    let project: ProjectSummary
+    let project: Project
     let onClose: () -> Void
 
     private enum Sheet: Identifiable {
@@ -60,13 +61,17 @@ struct EditorView: View {
                 .font(Theme.Typography.display)
                 .foregroundStyle(Theme.Palette.textSecondary)
                 .accessibilityLabel("Play")
-            Text("00:00.0 / \(Duration.seconds(project.duration), format: .time(pattern: .minuteSecond))")
+            Text("00:00.0 / \(Duration.seconds(duration), format: .time(pattern: .minuteSecond))")
                 .font(Theme.Typography.timecode)
                 .foregroundStyle(Theme.Palette.textSecondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 .padding(Theme.Spacing.sm)
         }
         .frame(maxHeight: .infinity)
+    }
+
+    private var duration: Double {
+        (try? project.loadTimeline().duration) ?? 0
     }
 
     private var timeline: some View {
@@ -118,6 +123,7 @@ struct EditorView: View {
 }
 
 #Preview {
-    EditorView(project: ProjectSummary.samples[0], onClose: {})
+    EditorView(project: PreviewData.sampleProjects()[0], onClose: {})
+        .modelContainer(PreviewData.container(withSamples: false))
         .preferredColorScheme(.dark)
 }

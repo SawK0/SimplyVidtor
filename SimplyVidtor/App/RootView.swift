@@ -1,7 +1,9 @@
+import SwiftData
 import SwiftUI
 
 struct RootView: View {
     @State private var router = AppRouter()
+    @Environment(\.modelContext) private var context
 
     var body: some View {
         #if DEBUG
@@ -17,7 +19,6 @@ struct RootView: View {
 
     private var content: some View {
         ProjectsView(
-            projects: ProjectSummary.samples,
             onNewProject: router.startNewProject,
             onOpen: router.open
         )
@@ -27,7 +28,7 @@ struct RootView: View {
                 MediaPickerSheet(
                     tab: .media,
                     onCancel: router.cancelSheet,
-                    onAdd: { router.finishNewProject(.untitled()) }
+                    onAdd: createProject
                 )
             }
         }
@@ -35,9 +36,18 @@ struct RootView: View {
             EditorView(project: project, onClose: router.closeEditor)
         }
     }
+
+    private func createProject() {
+        do {
+            router.finishNewProject(try ProjectLibrary(context: context).create())
+        } catch {
+            router.cancelSheet()
+        }
+    }
 }
 
 #Preview {
     RootView()
+        .modelContainer(PreviewData.container())
         .preferredColorScheme(.dark)
 }

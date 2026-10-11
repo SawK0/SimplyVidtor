@@ -3,18 +3,18 @@ import Testing
 
 @MainActor
 struct AppRouterTests {
-    @Test func newProjectOpensEditorOnlyAfterSheetDismisses() {
+    @Test func newProjectOpensEditorOnlyAfterSheetDismisses() throws {
         let router = AppRouter()
         router.startNewProject()
         #expect(router.sheet == .newProjectPicker)
 
-        let project = ProjectSummary.untitled()
+        let project = try Project(name: "New")
         router.finishNewProject(project)
         #expect(router.sheet == nil)
         #expect(router.openProject == nil)
 
         router.sheetDidDismiss()
-        #expect(router.openProject == project)
+        #expect(router.openProject === project)
     }
 
     @Test func cancellingThePickerDoesNotOpenTheEditor() {
@@ -25,10 +25,10 @@ struct AppRouterTests {
         #expect(router.openProject == nil)
     }
 
-    @Test func swipeDismissedPickerDoesNotReopenPreviousProject() {
+    @Test func swipeDismissedPickerDoesNotReopenPreviousProject() throws {
         let router = AppRouter()
         router.startNewProject()
-        router.finishNewProject(.untitled())
+        router.finishNewProject(try Project(name: "First"))
         router.sheetDidDismiss()
         router.closeEditor()
 
@@ -39,11 +39,11 @@ struct AppRouterTests {
         #expect(router.openProject == nil)
     }
 
-    @Test func openAndCloseExistingProject() {
+    @Test func openAndCloseExistingProject() throws {
         let router = AppRouter()
-        let project = ProjectSummary.samples[0]
+        let project = try Project(name: "Existing")
         router.open(project)
-        #expect(router.openProject == project)
+        #expect(router.openProject === project)
         router.closeEditor()
         #expect(router.openProject == nil)
     }

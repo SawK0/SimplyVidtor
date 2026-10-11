@@ -50,7 +50,8 @@ SimplyVidtor/
 - Normalized (0...1) coordinates for overlay positions and crop rects.
 - Every screen gets a `#Preview` with sample data.
 - Use `Theme` tokens (`Theme.Palette`, `Typography`, `Spacing`, `Radius`, `Size`), never raw hex or magic numbers in views. Reuse `DesignSystem/` components before writing new chrome; add new ones to `ComponentGallery`.
-- Debug builds launched with `-componentGallery` open the component gallery instead of the app.
+- Debug launch arguments (also in the shared scheme, off by default): `-componentGallery` opens the component gallery; `-inMemoryStore` uses a throwaway SwiftData store (UI tests always pass it).
+- Previews use `PreviewData.container()` for sample projects.
 - Tests use Swift Testing (`import Testing`, `@Test`, `#expect`) for unit tests; XCTest only for UI tests.
 - App is dark-only for v1: set `.preferredColorScheme(.dark)` at the root.
 
