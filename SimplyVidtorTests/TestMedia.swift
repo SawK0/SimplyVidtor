@@ -43,6 +43,35 @@ enum TestMedia {
     }
 
     /// RGB (0...255) of the centre pixel.
+    /// Left half red, right half blue.
+    static func splitPNGData(width: Int = 200, height: Int = 200) -> Data {
+        let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        )!
+        context.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: width / 2, height: height))
+        context.setFillColor(red: 0, green: 0, blue: 1, alpha: 1)
+        context.fill(CGRect(x: width / 2, y: 0, width: width - width / 2, height: height))
+        let data = NSMutableData()
+        let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil)!
+        CGImageDestinationAddImage(destination, context.makeImage()!, nil)
+        CGImageDestinationFinalize(destination)
+        return data as Data
+    }
+
+    /// Color at a normalized point, origin top left.
+    static func color(of image: CGImage, x: Double, y: Double) -> (r: Int, g: Int, b: Int) {
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let context = CGContext(
+            data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        )!
+        let w = CGFloat(image.width), h = CGFloat(image.height)
+        context.draw(image, in: CGRect(x: -x * w, y: -(1 - y) * h, width: w, height: h))
+        return (Int(pixel[0]), Int(pixel[1]), Int(pixel[2]))
+    }
+
     static func centerColor(of image: CGImage) -> (r: Int, g: Int, b: Int) {
         var pixel = [UInt8](repeating: 0, count: 4)
         let context = CGContext(

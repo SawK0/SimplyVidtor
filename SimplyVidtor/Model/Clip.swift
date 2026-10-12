@@ -29,6 +29,9 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
     var isMuted: Bool
     var filter: ClipFilter?
     var adjustments: ClipAdjustments
+    /// Clockwise quarter turns, 0...3.
+    var rotation: Int
+    var crop: CropRect?
 
     init(
         id: UUID = UUID(),
@@ -42,7 +45,9 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
         volume: Double = 1,
         isMuted: Bool = false,
         filter: ClipFilter? = nil,
-        adjustments: ClipAdjustments = ClipAdjustments()
+        adjustments: ClipAdjustments = ClipAdjustments(),
+        rotation: Int = 0,
+        crop: CropRect? = nil
     ) {
         self.id = id
         self.mediaFile = mediaFile
@@ -56,6 +61,8 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
         self.isMuted = isMuted
         self.filter = filter
         self.adjustments = adjustments
+        self.rotation = rotation
+        self.crop = crop
     }
 
     static func video(mediaFile: String, duration: Double) -> Clip {
@@ -89,7 +96,9 @@ nonisolated extension Clip {
             volume: try c.decode(Double.self, forKey: .volume),
             isMuted: try c.decodeIfPresent(Bool.self, forKey: .isMuted) ?? false,
             filter: try c.decodeIfPresent(ClipFilter.self, forKey: .filter),
-            adjustments: try c.decodeIfPresent(ClipAdjustments.self, forKey: .adjustments) ?? ClipAdjustments()
+            adjustments: try c.decodeIfPresent(ClipAdjustments.self, forKey: .adjustments) ?? ClipAdjustments(),
+            rotation: try c.decodeIfPresent(Int.self, forKey: .rotation) ?? 0,
+            crop: try c.decodeIfPresent(CropRect.self, forKey: .crop)
         )
     }
 }

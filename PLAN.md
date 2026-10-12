@@ -117,7 +117,7 @@ Chunk 5: history
 - [x] Volume panel (0–100%, AVAudioMix can't amplify), mute that keeps the level
 - [x] Filters panel: presets with intensity, apply to all (`FilterRenderer`, drawn by `VideoCompositor`)
 - [x] Adjust panel: brightness, contrast, saturation, warmth (applied before the filter)
-- [ ] Crop / rotate, aspect ratio (9:16, 1:1, 16:9)
+- [x] Crop / rotate, aspect ratio (9:16, 1:1, 16:9): per-clip quarter turns and normalized crop, project canvas on the timeline, full-screen crop editor over a still frame
 - [ ] Transitions between clips (cross-fade first)
 
 ### M4: Overlays (Figma 07)

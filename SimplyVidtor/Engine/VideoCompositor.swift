@@ -13,16 +13,20 @@ nonisolated final class ClipInstruction: NSObject, AVVideoCompositionInstruction
     let content: Content
     let filter: ClipFilter?
     let adjustments: ClipAdjustments
+    let rotation: Int
+    let crop: CropRect?
     let enablePostProcessing = false
     let containsTweening = false
     let passthroughTrackID = kCMPersistentTrackID_Invalid
     let requiredSourceTrackIDs: [NSValue]?
 
-    init(timeRange: CMTimeRange, content: Content, filter: ClipFilter? = nil, adjustments: ClipAdjustments = ClipAdjustments()) {
+    init(timeRange: CMTimeRange, content: Content, clip: Clip? = nil) {
         self.timeRange = timeRange
         self.content = content
-        self.filter = filter
-        self.adjustments = adjustments
+        filter = clip?.filter
+        adjustments = clip?.adjustments ?? ClipAdjustments()
+        rotation = clip?.rotation ?? 0
+        crop = clip?.crop
         if case .video(let trackID, _) = content {
             requiredSourceTrackIDs = [NSNumber(value: trackID)]
         } else {
@@ -68,7 +72,8 @@ nonisolated final class VideoCompositor: NSObject, AVVideoCompositing, @unchecke
         guard let instruction = request.videoCompositionInstruction as? ClipInstruction,
               let image = source(for: instruction, request: request)
         else { return nil }
-        return FilterRenderer.apply(instruction.adjustments, filter: instruction.filter, to: image)
+        let framed = FilterRenderer.framed(image, rotation: instruction.rotation, crop: instruction.crop)
+        return FilterRenderer.apply(instruction.adjustments, filter: instruction.filter, to: framed)
     }
 
     private func source(for instruction: ClipInstruction, request: AVAsynchronousVideoCompositionRequest) -> CIImage? {

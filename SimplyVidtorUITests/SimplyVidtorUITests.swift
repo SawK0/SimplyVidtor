@@ -219,6 +219,30 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testCropPanelRotatesAndCrops() throws {
+        createProject()
+        // Crop is past the right edge of the scrolling toolbar.
+        app.buttons["editor.tool.adjust"].swipeLeft()
+        app.buttons["editor.tool.crop"].tap()
+
+        let reset = app.buttons["editor.crop.reset"]
+        XCTAssertTrue(reset.waitForExistence(timeout: 2))
+        XCTAssertFalse(reset.isEnabled)
+        app.buttons["editor.crop.rotate"].tap()
+        XCTAssertTrue(reset.waitForEnabled(timeout: 2), "Rotating can be reset")
+        reset.tap()
+        expectation(for: NSPredicate(format: "isEnabled == false"), evaluatedWith: reset)
+        waitForExpectations(timeout: 3)
+
+        app.buttons["editor.crop.edit"].tap()
+        XCTAssertTrue(app.buttons["crop.done"].waitForExistence(timeout: 2))
+        // The stub clip has no file, so the editor shows a square placeholder.
+        app.descendants(matching: .any)["crop.ratio"].buttons["9:16"].tap()
+        app.buttons["crop.done"].tap()
+        XCTAssertTrue(reset.waitForEnabled(timeout: 3), "A 9:16 crop was saved")
+    }
+
+    @MainActor
     func testCancellingPickerStaysOnProjects() throws {
         app.buttons["projects.newProject"].tap()
 

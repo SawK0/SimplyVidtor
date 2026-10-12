@@ -5,6 +5,8 @@ import Foundation
 nonisolated struct Timeline: Codable, Hashable, Sendable {
     var clips: [Clip] = []
     var audioItems: [AudioItem] = []
+    /// `nil` matches the first clip's shape.
+    var aspectRatio: AspectRatio?
 
     var duration: Double {
         clips.reduce(0) { $0 + $1.duration }
@@ -140,6 +142,26 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
     mutating func resetAdjustments(ofClip id: Clip.ID) {
         guard let index = index(ofClip: id) else { return }
         clips[index].adjustments = ClipAdjustments()
+    }
+
+    /// Turns the clip 90° clockwise, carrying its crop along.
+    mutating func rotateClip(_ id: Clip.ID) {
+        guard let index = index(ofClip: id) else { return }
+        clips[index].rotation = (clips[index].rotation + 1) % 4
+        clips[index].crop = clips[index].crop?.rotatedClockwise
+    }
+
+    /// A full-frame crop is stored as `nil`.
+    mutating func setCrop(_ crop: CropRect?, ofClip id: Clip.ID) {
+        guard let index = index(ofClip: id) else { return }
+        let clamped = crop?.clamped
+        clips[index].crop = clamped?.isFull == true ? nil : clamped
+    }
+
+    mutating func resetFraming(ofClip id: Clip.ID) {
+        guard let index = index(ofClip: id) else { return }
+        clips[index].rotation = 0
+        clips[index].crop = nil
     }
 
     /// Inserts a copy right after the original. Returns the copy's id.

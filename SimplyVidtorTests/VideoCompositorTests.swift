@@ -39,6 +39,30 @@ struct VideoCompositorTests {
         #expect(plain.r - plain.b > 200, "The next clip stays yellow, got \(plain)")
     }
 
+    private func splitPhoto() throws -> Clip {
+        try MediaImporter.photoClip(writing: TestMedia.splitPNGData(), extension: "png", to: store)
+    }
+
+    @Test func rotationTurnsTheFrameClockwise() async throws {
+        var clip = try splitPhoto()
+        clip.rotation = 1
+        var timeline = Timeline(clips: [clip])
+        timeline.aspectRatio = .square
+        let image = try await frame(of: try await CompositionBuilder.build(timeline, store: store), at: 1)
+        let top = TestMedia.color(of: image, x: 0.5, y: 0.25)
+        let bottom = TestMedia.color(of: image, x: 0.5, y: 0.75)
+        #expect(top.r > 200 && top.b < 50, "The left (red) half ends up on top, got \(top)")
+        #expect(bottom.b > 200 && bottom.r < 50, "Got \(bottom)")
+    }
+
+    @Test func cropKeepsOnlyItsRegion() async throws {
+        var clip = try splitPhoto()
+        clip.crop = CropRect(x: 0, y: 0, width: 0.5, height: 1)
+        let image = try await frame(of: try await CompositionBuilder.build(Timeline(clips: [clip]), store: store), at: 1)
+        let center = TestMedia.centerColor(of: image)
+        #expect(center.r > 200 && center.b < 50, "Only the red half is left, got \(center)")
+    }
+
     @Test func videoFrameIsNotBlack() async throws {
         let output = try await CompositionBuilder.build(Timeline(clips: [try videoClip()]), store: store)
         let color = TestMedia.centerColor(of: try await frame(of: output, at: 1))
@@ -56,6 +80,19 @@ struct VideoCompositorTests {
         #expect(withVideo.videoComposition.renderSize == CGSize(width: 160, height: 90))
         let photosOnly = try await CompositionBuilder.build(Timeline(clips: [try photoClip()]), store: store)
         #expect(photosOnly.videoComposition.renderSize == CompositionBuilder.defaultRenderSize)
+
+        var rotated = try videoClip()
+        rotated.rotation = 1
+        let turned = try await CompositionBuilder.build(Timeline(clips: [rotated]), store: store)
+        #expect(turned.videoComposition.renderSize == CGSize(width: 90, height: 160))
+    }
+
+    @Test func aspectRatioSetsCanvasFromTheLongSide() {
+        let base = CGSize(width: 1920, height: 1080)
+        #expect(CompositionBuilder.renderSize(aspectRatio: nil, firstVideoSize: base) == base)
+        #expect(CompositionBuilder.renderSize(aspectRatio: .portrait, firstVideoSize: base) == CGSize(width: 1080, height: 1920))
+        #expect(CompositionBuilder.renderSize(aspectRatio: .square, firstVideoSize: base) == CGSize(width: 1920, height: 1920))
+        #expect(CompositionBuilder.renderSize(aspectRatio: nil, firstVideoSize: CGSize(width: 101, height: 57)) == CGSize(width: 102, height: 58))
     }
 
     @Test func instructionsCoverWholeCompositionWithoutGaps() async throws {

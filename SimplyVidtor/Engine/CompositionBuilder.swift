@@ -33,7 +33,7 @@ nonisolated enum CompositionBuilder {
         varispeedAudio?.audioTimePitchAlgorithm = .varispeed
         let clipAudioTracks = [clipAudioTrack] + (varispeedTrack.map { [$0] } ?? [])
         let blank = try await loadTracks(of: blankURL)
-        var renderSize: CGSize?
+        var firstVideoSize: CGSize?
         var instructions: [ClipInstruction] = []
 
         // Boundaries are computed once so track segments and instructions meet exactly.
@@ -49,12 +49,7 @@ nonisolated enum CompositionBuilder {
                 clipAudioTracks.forEach { $0.insertEmptyTimeRange(range) }
                 let url = store.url(for: clip.mediaFile)
                 let isPhoto = clip.kind == .photo && FileManager.default.fileExists(atPath: url.path(percentEncoded: false))
-                instructions.append(ClipInstruction(
-                    timeRange: range,
-                    content: isPhoto ? .photo(url) : .blank,
-                    filter: clip.filter,
-                    adjustments: clip.adjustments
-                ))
+                instructions.append(ClipInstruction(timeRange: range, content: isPhoto ? .photo(url) : .blank, clip: clip))
                 continue
             }
 
@@ -78,15 +73,15 @@ nonisolated enum CompositionBuilder {
             parameters.setVolume(Float(clip.effectiveVolume), at: range.start)
 
             let orientation = CGImagePropertyOrientation(source.transform)
-            if renderSize == nil {
+            if firstVideoSize == nil {
                 let size = try await sourceVideo.load(.naturalSize)
-                renderSize = orientation == .left || orientation == .right ? CGSize(width: size.height, height: size.width) : size
+                let oriented = orientation == .left || orientation == .right ? CGSize(width: size.height, height: size.width) : size
+                firstVideoSize = FilterRenderer.framedSize(oriented, rotation: clip.rotation, crop: clip.crop)
             }
             instructions.append(ClipInstruction(
                 timeRange: range,
                 content: .video(trackID: videoTrack.trackID, orientation: orientation),
-                filter: clip.filter,
-                adjustments: clip.adjustments
+                clip: clip
             ))
         }
 
@@ -114,9 +109,26 @@ nonisolated enum CompositionBuilder {
         videoComposition.customVideoCompositorClass = VideoCompositor.self
         videoComposition.instructions = instructions
         videoComposition.frameDuration = CMTime(value: 1, timescale: frameRate)
-        videoComposition.renderSize = renderSize ?? defaultRenderSize
+        videoComposition.renderSize = renderSize(aspectRatio: timeline.aspectRatio, firstVideoSize: firstVideoSize)
 
         return Output(composition: composition, audioMix: audioMix, videoComposition: videoComposition)
+    }
+
+    /// The first video's framed size, or a canvas of `aspectRatio` with the same
+    /// long side. Sides are rounded to even pixels for the encoder.
+    static func renderSize(aspectRatio: AspectRatio?, firstVideoSize: CGSize?) -> CGSize {
+        let base = firstVideoSize ?? defaultRenderSize
+        let size: CGSize
+        if let aspectRatio {
+            let long = max(base.width, base.height)
+            size = aspectRatio.value < 1
+                ? CGSize(width: long * aspectRatio.value, height: long)
+                : CGSize(width: long, height: long / aspectRatio.value)
+        } else {
+            size = base
+        }
+        let even = { (side: CGFloat) in max(2, (side / 2).rounded() * 2) }
+        return CGSize(width: even(size.width), height: even(size.height))
     }
 
     static func time(_ seconds: Double) -> CMTime {

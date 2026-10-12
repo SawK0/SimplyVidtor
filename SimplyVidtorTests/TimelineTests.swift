@@ -248,6 +248,7 @@ struct TimelineTests {
         #expect(clip.preservesPitch)
         #expect(!clip.isMuted)
         #expect(clip.filter == nil && clip.adjustments.isIdentity)
+        #expect(clip.rotation == 0 && clip.crop == nil)
         #expect(clip.speed == 2)
     }
 
@@ -279,5 +280,23 @@ struct TimelineTests {
         #expect(timeline.clips[0].adjustments == ClipAdjustments(contrast: 1, warmth: -0.4))
         timeline.resetAdjustments(ofClip: id)
         #expect(timeline.clips[0].adjustments.isIdentity)
+    }
+
+    @Test func rotatingCarriesCropAndFullCropIsCleared() {
+        var timeline = sample()
+        let id = timeline.clips[0].id
+        timeline.setCrop(CropRect(x: 0, y: 0, width: 0.5, height: 1), ofClip: id)
+        timeline.rotateClip(id)
+        #expect(timeline.clips[0].rotation == 1)
+        #expect(timeline.clips[0].crop == CropRect(x: 0, y: 0, width: 1, height: 0.5))
+        timeline.setCrop(.full, ofClip: id)
+        #expect(timeline.clips[0].crop == nil)
+        timeline.resetFraming(ofClip: id)
+        #expect(timeline.clips[0].rotation == 0)
+    }
+
+    @Test func timelinesSavedBeforeAspectRatioDecode() throws {
+        let timeline = try JSONDecoder().decode(Timeline.self, from: Data(#"{"clips":[],"audioItems":[]}"#.utf8))
+        #expect(timeline.aspectRatio == nil)
     }
 }

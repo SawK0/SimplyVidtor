@@ -4,6 +4,39 @@ import CoreImage.CIFilterBuiltins
 /// Core Image recipes for adjustments and `FilterPreset`, shared by the
 /// compositor and panel thumbnails.
 nonisolated enum FilterRenderer {
+    /// Turns `image` by clockwise quarter turns, then keeps the `crop` region.
+    static func framed(_ image: CIImage, rotation: Int, crop: CropRect?) -> CIImage {
+        let turned = switch ((rotation % 4) + 4) % 4 {
+        case 1: image.oriented(.right)
+        case 2: image.oriented(.down)
+        case 3: image.oriented(.left)
+        default: image
+        }
+        guard let crop, !crop.isFull else { return turned }
+        let e = turned.extent
+        // Crop rects are top-left based; Core Image is bottom-left based.
+        return turned.cropped(to: CGRect(
+            x: e.minX + crop.x * e.width,
+            y: e.minY + (1 - crop.maxY) * e.height,
+            width: crop.width * e.width,
+            height: crop.height * e.height
+        ))
+    }
+
+    /// Pixel size of a frame of `size` after `framed`.
+    static func framedSize(_ size: CGSize, rotation: Int, crop: CropRect?) -> CGSize {
+        let turned = rotation % 2 == 1 ? CGSize(width: size.height, height: size.width) : size
+        let crop = crop ?? .full
+        return CGSize(width: turned.width * crop.width, height: turned.height * crop.height)
+    }
+
+    /// Rotated copy of a still frame, for the crop editor.
+    @concurrent
+    static func rotated(_ image: CGImage, quarterTurns: Int) async -> CGImage? {
+        let turned = framed(CIImage(cgImage: image), rotation: quarterTurns, crop: nil)
+        return CIContext(options: [.cacheIntermediates: false]).createCGImage(turned, from: turned.extent)
+    }
+
     /// Adjustments first, then the filter on top.
     static func apply(_ adjustments: ClipAdjustments, filter: ClipFilter?, to image: CIImage) -> CIImage {
         let adjusted = apply(adjustments, to: image)
