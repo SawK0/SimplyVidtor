@@ -179,6 +179,28 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testFiltersPanelAppliesPresetToAll() throws {
+        createProject()
+        app.buttons["editor.addClip"].tap()
+        app.buttons["mediaPicker.add"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["timeline.clip.1"].waitForExistence(timeout: 3))
+
+        app.buttons["editor.tool.filters"].tap()
+        let noir = app.buttons["editor.filter.noir"]
+        XCTAssertTrue(noir.waitForExistence(timeout: 2))
+        XCTAssertFalse(app.buttons["editor.filter.applyAll"].isEnabled, "Clips already match")
+        noir.tap()
+
+        XCTAssertTrue(app.descendants(matching: .any)["editor.filter.intensity"].waitForExistence(timeout: 2))
+        XCTAssertTrue(noir.isSelected)
+        let applyAll = app.buttons["editor.filter.applyAll"]
+        XCTAssertTrue(applyAll.waitForEnabled(timeout: 2))
+        applyAll.tap()
+        expectation(for: NSPredicate(format: "isEnabled == false"), evaluatedWith: applyAll)
+        waitForExpectations(timeout: 3)
+    }
+
+    @MainActor
     func testCancellingPickerStaysOnProjects() throws {
         app.buttons["projects.newProject"].tap()
 

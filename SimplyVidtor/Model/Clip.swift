@@ -27,6 +27,7 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
     var volume: Double
     /// Silences the clip without losing its volume setting.
     var isMuted: Bool
+    var filter: ClipFilter?
 
     init(
         id: UUID = UUID(),
@@ -38,7 +39,8 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
         speed: Double = 1,
         preservesPitch: Bool = true,
         volume: Double = 1,
-        isMuted: Bool = false
+        isMuted: Bool = false,
+        filter: ClipFilter? = nil
     ) {
         self.id = id
         self.mediaFile = mediaFile
@@ -50,6 +52,7 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
         self.preservesPitch = preservesPitch
         self.volume = volume
         self.isMuted = isMuted
+        self.filter = filter
     }
 
     static func video(mediaFile: String, duration: Double) -> Clip {
@@ -81,7 +84,8 @@ extension Clip {
             speed: try c.decode(Double.self, forKey: .speed),
             preservesPitch: try c.decodeIfPresent(Bool.self, forKey: .preservesPitch) ?? true,
             volume: try c.decode(Double.self, forKey: .volume),
-            isMuted: try c.decodeIfPresent(Bool.self, forKey: .isMuted) ?? false
+            isMuted: try c.decodeIfPresent(Bool.self, forKey: .isMuted) ?? false,
+            filter: try c.decodeIfPresent(ClipFilter.self, forKey: .filter)
         )
     }
 }

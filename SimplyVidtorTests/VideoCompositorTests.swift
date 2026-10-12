@@ -29,6 +29,16 @@ struct VideoCompositorTests {
         #expect(color.r > 230 && abs(color.g - 204) < 25 && color.b < 30, "Expected the yellow photo, got \(color)")
     }
 
+    @Test func filterIsAppliedToItsClip() async throws {
+        var mono = try photoClip()
+        mono.filter = ClipFilter(preset: .mono)
+        let output = try await CompositionBuilder.build(Timeline(clips: [mono, try photoClip()]), store: store)
+        let filtered = TestMedia.centerColor(of: try await frame(of: output, at: 1))
+        let plain = TestMedia.centerColor(of: try await frame(of: output, at: 4))
+        #expect(abs(filtered.r - filtered.b) < 10, "Expected gray, got \(filtered)")
+        #expect(plain.r - plain.b > 200, "The next clip stays yellow, got \(plain)")
+    }
+
     @Test func videoFrameIsNotBlack() async throws {
         let output = try await CompositionBuilder.build(Timeline(clips: [try videoClip()]), store: store)
         let color = TestMedia.centerColor(of: try await frame(of: output, at: 1))

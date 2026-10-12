@@ -261,4 +261,12 @@ struct TimelineTests {
         timeline.setMuted(false, ofClip: id)
         #expect(timeline.clips[0].effectiveVolume == 0.4)
     }
+
+    @Test func applyFilterToAllCopiesTheClipsFilter() {
+        var timeline = sample()
+        let id = timeline.clips[1].id
+        timeline.setFilter(ClipFilter(preset: .noir, intensity: 0.6), ofClip: id)
+        timeline.applyFilterToAll(from: id)
+        #expect(timeline.clips.allSatisfy { $0.filter == ClipFilter(preset: .noir, intensity: 0.6) })
+    }
 }

@@ -120,6 +120,18 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         clips[index].isMuted = isMuted
     }
 
+    mutating func setFilter(_ filter: ClipFilter?, ofClip id: Clip.ID) {
+        guard let index = index(ofClip: id) else { return }
+        clips[index].filter = filter
+    }
+
+    /// Gives every clip the same filter as `id`.
+    mutating func applyFilterToAll(from id: Clip.ID) {
+        guard let index = index(ofClip: id) else { return }
+        let filter = clips[index].filter
+        for i in clips.indices { clips[i].filter = filter }
+    }
+
     /// Inserts a copy right after the original. Returns the copy's id.
     @discardableResult
     mutating func duplicateClip(_ id: Clip.ID) -> Clip.ID? {

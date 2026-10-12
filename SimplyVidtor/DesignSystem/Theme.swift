@@ -73,6 +73,7 @@ enum Theme {
         static let rulerHeight: CGFloat = 28
         static let clipGap: CGFloat = 2
         static let trimHandleWidth: CGFloat = 16
+        static let filterSwatch: CGFloat = 56
         static let selectionBorder: CGFloat = 2
         static let playheadWidth: CGFloat = 2
         static let hairline: CGFloat = 1

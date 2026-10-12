@@ -49,7 +49,7 @@ nonisolated enum CompositionBuilder {
                 clipAudioTracks.forEach { $0.insertEmptyTimeRange(range) }
                 let url = store.url(for: clip.mediaFile)
                 let isPhoto = clip.kind == .photo && FileManager.default.fileExists(atPath: url.path(percentEncoded: false))
-                instructions.append(ClipInstruction(timeRange: range, content: isPhoto ? .photo(url) : .blank))
+                instructions.append(ClipInstruction(timeRange: range, content: isPhoto ? .photo(url) : .blank, filter: clip.filter))
                 continue
             }
 
@@ -79,7 +79,8 @@ nonisolated enum CompositionBuilder {
             }
             instructions.append(ClipInstruction(
                 timeRange: range,
-                content: .video(trackID: videoTrack.trackID, orientation: orientation)
+                content: .video(trackID: videoTrack.trackID, orientation: orientation),
+                filter: clip.filter
             ))
         }
 
