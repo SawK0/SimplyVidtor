@@ -29,6 +29,8 @@ nonisolated struct TextItem: Codable, Identifiable, Hashable, Sendable {
     var font: TextFont = .system
     var color: UInt32 = 0xFFFFFF
     var background: TextBackground = .none
+    /// An emoji sticker: drawn as is, without color or background.
+    var isSticker = false
 
     var timelineEnd: Double { timelineStart + duration }
 
@@ -37,6 +39,13 @@ nonisolated struct TextItem: Codable, Identifiable, Hashable, Sendable {
     }
 
     static let minimumDuration: Double = 0.1
+    static let stickerSize = 0.2
+    static let stickers = ["😀", "😂", "😍", "🥳", "😎", "🤩", "😭", "🤔", "👍", "👏", "🙌", "🔥",
+                           "❤️", "✨", "🎉", "⭐️", "💯", "🌈", "☀️", "🌙", "🎂", "🎵", "📍", "✈️"]
+
+    static func sticker(_ emoji: String, at time: Double) -> TextItem {
+        TextItem(text: emoji, timelineStart: time, size: stickerSize, isSticker: true)
+    }
 
     /// Same length, starting at `start` (not before 0).
     func moved(toStart start: Double) -> TextItem {
@@ -58,5 +67,26 @@ nonisolated struct TextItem: Codable, Identifiable, Hashable, Sendable {
         var item = self
         item.duration = max(end - timelineStart, Self.minimumDuration)
         return item
+    }
+}
+
+nonisolated extension TextItem {
+    /// Fields added after the first release are decoded leniently.
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try c.decode(UUID.self, forKey: .id),
+            text: try c.decode(String.self, forKey: .text),
+            timelineStart: try c.decode(Double.self, forKey: .timelineStart),
+            duration: try c.decode(Double.self, forKey: .duration),
+            x: try c.decode(Double.self, forKey: .x),
+            y: try c.decode(Double.self, forKey: .y),
+            size: try c.decode(Double.self, forKey: .size),
+            rotation: try c.decode(Double.self, forKey: .rotation),
+            font: try c.decode(TextFont.self, forKey: .font),
+            color: try c.decode(UInt32.self, forKey: .color),
+            background: try c.decode(TextBackground.self, forKey: .background),
+            isSticker: try c.decodeIfPresent(Bool.self, forKey: .isSticker) ?? false
+        )
     }
 }

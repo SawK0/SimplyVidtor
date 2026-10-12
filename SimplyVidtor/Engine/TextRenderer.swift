@@ -20,6 +20,8 @@ nonisolated enum TextRenderer {
     }
 
     static func image(for item: TextItem, canvas: CGSize) -> CGImage? {
+        var item = item
+        if item.isSticker { item.background = .none }
         let fontSize = max(item.size * min(canvas.width, canvas.height), 1)
         let font = makeFont(item.font, size: fontSize)
         let padding = (fontSize * 0.3).rounded(.up)

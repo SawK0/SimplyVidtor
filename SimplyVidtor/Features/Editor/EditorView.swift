@@ -53,9 +53,11 @@ struct EditorView: View {
             if id == nil, activeTool?.isClipTool == true { activeTool = nil }
         }
         .onChange(of: session?.selectedTextID) { _, id in
-            if id != nil {
+            if let item = session?.selectedText {
+                activeTool = item.isSticker ? .sticker : .text
+            } else if id != nil {
                 activeTool = .text
-            } else if activeTool == .text {
+            } else if activeTool == .text || activeTool == .sticker {
                 activeTool = nil
             }
         }
@@ -70,10 +72,10 @@ struct EditorView: View {
 
     /// Panels that replace the toolbar while open.
     private enum Tool {
-        case speed, volume, filters, adjust, crop, transition, text
+        case speed, volume, filters, adjust, crop, transition, text, sticker
 
         /// Panels that act on the selected clip.
-        var isClipTool: Bool { self != .transition && self != .text }
+        var isClipTool: Bool { ![.transition, .text, .sticker].contains(self) }
     }
 
     @ViewBuilder
@@ -90,6 +92,11 @@ struct EditorView: View {
             if let id = session.selectedTextID {
                 TextPanel(session: session, id: id) { session.selectText(nil) }
                     .id(id)
+            }
+        case .sticker:
+            StickerPanel(session: session) {
+                session.selectText(nil)
+                activeTool = nil
             }
         }
     }
@@ -240,6 +247,12 @@ struct EditorView: View {
                 ToolButton(title: "Text", systemImage: "textformat") { session?.selectText(UUID()) }
                     .disabled(session == nil)
                     .accessibilityIdentifier("editor.tool.text")
+                ToolButton(title: "Stickers", systemImage: "face.smiling") {
+                    session?.selectText(nil)
+                    activeTool = .sticker
+                }
+                .disabled(session == nil)
+                .accessibilityIdentifier("editor.tool.sticker")
                 ToolButton(title: "Audio", systemImage: "music.note") { pickerTab = .audio }
                     .accessibilityIdentifier("editor.tool.audio")
                 ToolButton(title: "Crop", systemImage: "crop") { open(.crop) }

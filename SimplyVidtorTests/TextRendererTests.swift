@@ -30,4 +30,16 @@ struct TextRendererTests {
         let image = try #require(TextRenderer.image(for: item, canvas: canvas))
         #expect(TextRenderer.size(for: item, canvas: canvas) == CGSize(width: image.width, height: image.height))
     }
+
+    @Test func stickerRendersInColorWithoutBackground() throws {
+        var sticker = TextItem.sticker("🔥", at: 0)
+        sticker.background = .box
+        let image = try #require(TextRenderer.image(for: sticker, canvas: canvas))
+        // The corner stays transparent: the box background is ignored for stickers.
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let context = CGContext(data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        #expect(pixel[3] == 0)
+    }
 }

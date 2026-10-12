@@ -167,7 +167,8 @@ struct TimelineTracksView: View {
             Color.clear
             ForEach(Array(timeline.textItems.enumerated()), id: \.element.id) { index, item in
                 let isSelected = session.selectedTextID == item.id
-                Label(item.text, systemImage: "textformat")
+                Label(item.text, systemImage: item.isSticker ? "face.smiling" : "textformat")
+                    .labelStyle(.titleAndIcon)
                     .font(Theme.Typography.caption)
                     .lineLimit(1)
                     .foregroundStyle(Theme.Palette.onAccent)
@@ -195,7 +196,7 @@ struct TimelineTracksView: View {
                     .offset(x: metrics.offset(for: item.timelineStart))
                     .onTapGesture { session.selectText(item.id) }
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("Text \(index + 1)")
+                    .accessibilityLabel(item.isSticker ? "Sticker \(index + 1)" : "Text \(index + 1)")
                     .accessibilityValue(item.text)
                     .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
                     .accessibilityAction { session.selectText(item.id) }

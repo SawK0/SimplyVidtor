@@ -338,6 +338,31 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testAddSwapAndDeleteSticker() throws {
+        createProject()
+        app.buttons["editor.tool.adjust"].swipeLeft()
+        app.buttons["editor.tool.sticker"].tap()
+        let fire = app.buttons["editor.sticker.11"]
+        XCTAssertTrue(fire.waitForExistence(timeout: 2))
+        fire.tap()
+
+        let item = app.descendants(matching: .any)["timeline.text.0"]
+        XCTAssertTrue(item.waitForExistence(timeout: 2))
+        XCTAssertEqual(item.value as? String, "🔥")
+        app.buttons["editor.sticker.12"].tap()
+        expectation(for: NSPredicate(format: "value == '❤️'"), evaluatedWith: item)
+        waitForExpectations(timeout: 2)
+        app.buttons["editor.panel.done"].tap()
+        XCTAssertTrue(app.buttons["editor.undo"].waitForEnabled(timeout: 2))
+
+        item.tap()
+        let delete = app.buttons["editor.sticker.delete"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 2), "Tapping a sticker opens the sticker panel")
+        delete.tap()
+        XCTAssertTrue(item.waitForNonExistence(timeout: 3))
+    }
+
+    @MainActor
     func testCancellingPickerStaysOnProjects() throws {
         app.buttons["projects.newProject"].tap()
 

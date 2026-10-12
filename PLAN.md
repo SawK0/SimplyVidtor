@@ -123,7 +123,7 @@ Chunk 5: history
 ### M4: Overlays (Figma 07)
 - [x] Text track: add, edit with keyboard, font / color / background / size; rendered by the compositor, live while editing via `OverlayStore`
 - [x] Text: drag, pinch and rotate on the preview; move and trim text items on the timeline
-- [ ] Sticker track (emoji / bundled assets)
+- [x] Stickers: emoji grid; stickers are `TextItem`s with `isSticker`, sharing text rendering, gestures and the overlay track (bundled image stickers later)
 - [ ] Audio: editor Audio tool opens the picker sheet on the Audio tab; trim, volume, fade in/out, waveform
 
 ### M5: Export (Figma 03, 08, 09)

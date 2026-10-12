@@ -395,4 +395,12 @@ struct TimelineTests {
         #expect(item.trimmingEnd(to: 4).duration == 2)
         #expect(item.trimmingEnd(to: 0).duration == TextItem.minimumDuration)
     }
+
+    @Test func textSavedBeforeStickersDecodesAsText() throws {
+        let item = TextItem(text: "Hi", timelineStart: 1)
+        var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(item)) as! [String: Any]
+        json.removeValue(forKey: "isSticker")
+        let decoded = try JSONDecoder().decode(TextItem.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(decoded == item)
+    }
 }
