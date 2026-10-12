@@ -306,6 +306,38 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testTextCanBeMovedOnPreviewAndTrimmedOnTimeline() throws {
+        createProject()
+        app.buttons["editor.tool.adjust"].swipeLeft()
+        app.buttons["editor.tool.text"].tap()
+        let field = app.textFields["editor.text.field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 2))
+        field.typeText("Drag me\n")
+
+        let selection = app.descendants(matching: .any)["preview.textSelection"]
+        XCTAssertTrue(selection.waitForExistence(timeout: 2))
+        XCTAssertEqual(selection.value as? String, "Drag me, 50% across, 50% down")
+        // New text sits in the middle of the frame, which is centred in the preview.
+        let start = selection.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -30)))
+        let moved = NSPredicate(format: "NOT (value ENDSWITH '50% down')")
+        expectation(for: moved, evaluatedWith: selection)
+        waitForExpectations(timeout: 3)
+
+        let text = app.descendants(matching: .any)["timeline.text.0"]
+        let trailing = app.descendants(matching: .any)["timeline.trim.trailing"]
+        XCTAssertTrue(trailing.waitForExistence(timeout: 2))
+        let widthBefore = text.frame.width
+        let handle = trailing.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        handle.press(forDuration: 0.2, thenDragTo: handle.withOffset(CGVector(dx: -60, dy: 0)),
+                     withVelocity: .slow, thenHoldForDuration: 0.1)
+        XCTAssertLessThan(text.frame.width, widthBefore - 30, "Text was trimmed")
+
+        app.buttons["editor.panel.done"].tap()
+        XCTAssertTrue(app.buttons["editor.undo"].waitForEnabled(timeout: 2))
+    }
+
+    @MainActor
     func testCancellingPickerStaysOnProjects() throws {
         app.buttons["projects.newProject"].tap()
 

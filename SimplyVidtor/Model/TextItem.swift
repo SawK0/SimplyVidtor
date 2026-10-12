@@ -35,4 +35,28 @@ nonisolated struct TextItem: Codable, Identifiable, Hashable, Sendable {
     func isVisible(at time: Double) -> Bool {
         time >= timelineStart && time < timelineEnd
     }
+
+    static let minimumDuration: Double = 0.1
+
+    /// Same length, starting at `start` (not before 0).
+    func moved(toStart start: Double) -> TextItem {
+        var item = self
+        item.timelineStart = max(start, 0)
+        return item
+    }
+
+    /// Moves the start, keeping the end fixed.
+    func trimmingStart(to start: Double) -> TextItem {
+        var item = self
+        item.timelineStart = min(max(start, 0), timelineEnd - Self.minimumDuration)
+        item.duration = timelineEnd - item.timelineStart
+        return item
+    }
+
+    /// Moves the end, keeping the start fixed.
+    func trimmingEnd(to end: Double) -> TextItem {
+        var item = self
+        item.duration = max(end - timelineStart, Self.minimumDuration)
+        return item
+    }
 }

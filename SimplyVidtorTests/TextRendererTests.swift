@@ -24,4 +24,10 @@ struct TextRendererTests {
     func everyFontRenders(font: TextFont) {
         #expect(TextRenderer.image(for: TextItem(text: "Aa", timelineStart: 0, font: font), canvas: canvas) != nil)
     }
+
+    @Test func measuredSizeMatchesImage() throws {
+        let item = TextItem(text: "Measure me", timelineStart: 0, background: .box)
+        let image = try #require(TextRenderer.image(for: item, canvas: canvas))
+        #expect(TextRenderer.size(for: item, canvas: canvas) == CGSize(width: image.width, height: image.height))
+    }
 }

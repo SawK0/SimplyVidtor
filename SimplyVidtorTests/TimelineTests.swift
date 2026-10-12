@@ -382,4 +382,17 @@ struct TimelineTests {
         #expect(item.isVisible(at: 1))
         #expect(!item.isVisible(at: 3))
     }
+
+    @Test func textMoveAndTrimKeepTheOtherEdge() {
+        let item = TextItem(text: "Hi", timelineStart: 2, duration: 3)
+        #expect(item.moved(toStart: -1).timelineStart == 0)
+        #expect(item.moved(toStart: 4).duration == 3)
+
+        let trimmedStart = item.trimmingStart(to: 3)
+        #expect(trimmedStart.timelineStart == 3 && trimmedStart.timelineEnd == 5)
+        #expect(abs(item.trimmingStart(to: 9).duration - TextItem.minimumDuration) < 1e-9)
+
+        #expect(item.trimmingEnd(to: 4).duration == 2)
+        #expect(item.trimmingEnd(to: 0).duration == TextItem.minimumDuration)
+    }
 }

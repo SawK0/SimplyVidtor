@@ -135,6 +135,7 @@ struct EditorView: View {
             if let session {
                 PlayerView(player: session.player)
                     .accessibilityHidden(true)
+                TextOverlayLayer(session: session)
             } else if loadFailed {
                 ContentUnavailableView("Couldn’t Open Project", systemImage: "exclamationmark.triangle")
             } else {
@@ -142,8 +143,6 @@ struct EditorView: View {
             }
         }
         .frame(maxHeight: .infinity)
-        .contentShape(.rect)
-        .onTapGesture { session?.togglePlayback() }
         .overlay(alignment: .topTrailing) {
             if session != nil {
                 CircleIconButton(systemImage: "arrow.up.left.and.arrow.down.right", accessibilityLabel: "Full screen") {

@@ -9,6 +9,8 @@ final class EditorSession {
     private(set) var currentTime: Double = 0
     private(set) var isPlaying = false
     private(set) var buildError: (any Error)?
+    /// Pixel size of the rendered frame, for mapping overlays onto the preview.
+    private(set) var renderSize = CompositionBuilder.defaultRenderSize
     var selectedClipID: Clip.ID? {
         didSet {
             if selectedClipID != nil {
@@ -104,6 +106,9 @@ final class EditorSession {
     }
 
     var isEditingInteractively: Bool { interactiveBase != nil }
+    /// A finger is dragging an edit (the timeline stops scrolling). False while
+    /// a panel merely holds an edit open, like the text panel.
+    private(set) var isDragging = false
 
     func select(_ id: Clip.ID?) {
         selectedClipID = (id == selectedClipID) ? nil : id
@@ -119,12 +124,23 @@ final class EditorSession {
         selectedTransitionClipID = target
     }
 
+    /// Selects a text item, moving the playhead into it so it shows.
     func selectText(_ id: TextItem.ID?) {
         if id != nil {
             selectedClipID = nil
             selectedTransitionClipID = nil
         }
         selectedTextID = id
+        if let item = selectedText, !item.isVisible(at: currentTime) {
+            Task { await seek(to: item.timelineStart) }
+        }
+    }
+
+    /// Live change to a text item; committed when the text panel finishes.
+    /// Drags pass `byDrag` and call `endDrag()` when the finger lifts.
+    func editText(_ item: TextItem, byDrag: Bool = false) {
+        beginInteractiveEdit(byDrag: byDrag)
+        updateInteractiveEdit { $0.upsertText(item) }
     }
 
     var selectedText: TextItem? {
@@ -204,7 +220,8 @@ final class EditorSession {
 
     /// Starts a drag-driven edit. Updates change `timeline` live without saving
     /// or rebuilding; `endInteractiveEdit` commits once.
-    func beginInteractiveEdit() {
+    func beginInteractiveEdit(byDrag: Bool = true) {
+        if byDrag { isDragging = true }
         guard interactiveBase == nil else { return }
         pause()
         interactiveBase = timeline
@@ -226,7 +243,13 @@ final class EditorSession {
         item.videoComposition = composition.mutableCopy() as? AVVideoComposition
     }
 
+    /// Ends a drag inside an edit a panel keeps open; the panel commits later.
+    func endDrag() {
+        isDragging = false
+    }
+
     func endInteractiveEdit() async {
+        isDragging = false
         guard let base = interactiveBase else { return }
         interactiveBase = nil
         guard timeline != base else { return }
@@ -234,6 +257,7 @@ final class EditorSession {
     }
 
     func cancelInteractiveEdit() {
+        isDragging = false
         guard let base = interactiveBase else { return }
         let textChanged = base.textItems != timeline.textItems
         timeline = base
@@ -247,6 +271,7 @@ final class EditorSession {
             let item = AVPlayerItem(asset: output.composition)
             item.audioMix = output.audioMix
             item.videoComposition = output.videoComposition
+            renderSize = output.videoComposition.renderSize
             observeEnd(of: item)
             player.replaceCurrentItem(with: item)
             buildError = nil

@@ -13,6 +13,8 @@ struct TimelineTracksView: View {
     /// While trimming a clip's start, clips from that index on are drawn shifted
     /// by this much so the clip's right edge stays put under the finger.
     @State private var leadingTrim: (index: Int, shift: CGFloat)?
+    /// The selected text as it was when the current timeline drag began.
+    @State private var textDragStart: TextItem?
 
     private var timeline: Timeline { session.timeline }
 
@@ -174,9 +176,22 @@ struct TimelineTracksView: View {
                     .frame(maxHeight: .infinity)
                     .background(Theme.Palette.trackText, in: .rect(cornerRadius: Theme.Radius.clip))
                     .overlay {
-                        RoundedRectangle(cornerRadius: Theme.Radius.clip)
-                            .strokeBorder(isSelected ? Theme.Palette.textPrimary : .clear, lineWidth: Theme.Size.selectionBorder)
+                        if isSelected {
+                            SelectionFrame(
+                                onLeadingDrag: { dragText(item, by: $0) { $0.trimmingStart(to: $0.timelineStart + $1) } },
+                                onTrailingDrag: { dragText(item, by: $0) { $0.trimmingEnd(to: $0.timelineEnd + $1) } },
+                                onEnded: endTextDrag
+                            )
+                        }
                     }
+                    .gesture(
+                        DragGesture(minimumDistance: 4)
+                            .onChanged { drag in
+                                dragText(item, by: drag.translation.width) { $0.moved(toStart: $0.timelineStart + $1) }
+                            }
+                            .onEnded { _ in endTextDrag() },
+                        including: isSelected ? .all : .subviews
+                    )
                     .offset(x: metrics.offset(for: item.timelineStart))
                     .onTapGesture { session.selectText(item.id) }
                     .accessibilityElement(children: .ignore)
@@ -187,6 +202,18 @@ struct TimelineTracksView: View {
                     .accessibilityIdentifier("timeline.text.\(index)")
             }
         }
+    }
+
+    /// Applies `change(start, seconds)` to the text as it was when the drag began.
+    private func dragText(_ item: TextItem, by translation: CGFloat, _ change: (TextItem, Double) -> TextItem) {
+        let start = textDragStart ?? item
+        textDragStart = start
+        session.editText(change(start, Double(translation / metrics.pointsPerSecond)), byDrag: true)
+    }
+
+    private func endTextDrag() {
+        textDragStart = nil
+        session.endDrag()
     }
 
     private var audioTrack: some View {
@@ -342,7 +369,7 @@ struct EditorTimelineView: View {
             TimelineScrollView(
                 contentWidth: metrics.width(of: session.duration) + geo.size.width,
                 offset: metrics.offset(for: session.currentTime),
-                isScrollEnabled: !session.isEditingInteractively,
+                isScrollEnabled: !session.isDragging,
                 onScrub: { session.scrub(to: metrics.time(forOffset: $0)) },
                 onInteractionChanged: { if $0 { session.pause() } },
                 onLongPress: { state, x in reorder(state, trackX: x - inset) }

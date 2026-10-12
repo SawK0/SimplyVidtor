@@ -240,4 +240,14 @@ struct EditorSessionTests {
         session.select(session.timeline.clips[0].id)
         #expect(session.selectedTextID == nil)
     }
+
+    @Test func heldTextEditDoesNotCountAsDragging() throws {
+        let session = try makeSession()
+        session.beginInteractiveEdit(byDrag: false)
+        #expect(session.isEditingInteractively && !session.isDragging)
+        session.editText(TextItem(text: "Hi", timelineStart: 0), byDrag: true)
+        #expect(session.isDragging)
+        session.endDrag()
+        #expect(!session.isDragging && session.isEditingInteractively)
+    }
 }

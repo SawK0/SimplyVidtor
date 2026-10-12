@@ -1,13 +1,14 @@
 import SwiftUI
 
-/// Adds or edits one text item. Changes show live and commit as one undo step
-/// on Done; an empty text is discarded.
+/// Adds or edits one text item. The item lives in the session, so preview
+/// gestures and timeline drags stay in sync; changes show live and commit as
+/// one undo step on Done. An empty text is discarded.
 struct TextPanel: View {
     let session: EditorSession
     let onDone: () -> Void
 
-    @State private var draft: TextItem
-    /// Kept in state: once the draft is on the timeline, a re-created panel would think it existed before.
+    /// The new item before it's first edited onto the timeline.
+    @State private var seed: TextItem
     @State private var isNew: Bool
     @FocusState private var isTyping: Bool
 
@@ -17,13 +18,30 @@ struct TextPanel: View {
         self.onDone = onDone
         let existing = session.selectedText
         _isNew = State(initialValue: existing == nil)
-        _draft = State(initialValue: existing ?? TextItem(id: id, text: "", timelineStart: session.currentTime))
+        _seed = State(initialValue: existing ?? TextItem(id: id, text: "", timelineStart: session.currentTime))
+    }
+
+    /// Looked up by id, not selection: the panel commits after the selection has moved on.
+    private var item: TextItem {
+        session.timeline.textIndex(of: seed.id).map { session.timeline.textItems[$0] } ?? seed
+    }
+
+    /// Reads and writes one field of the item through the session.
+    private func binding<Value>(_ keyPath: WritableKeyPath<TextItem, Value>) -> Binding<Value> {
+        Binding(
+            get: { item[keyPath: keyPath] },
+            set: { value in
+                var changed = item
+                changed[keyPath: keyPath] = value
+                session.editText(changed)
+            }
+        )
     }
 
     var body: some View {
         ToolPanel(title: isNew ? "Add Text" : "Edit Text", onDone: finish) {
             VStack(spacing: Theme.Spacing.sm) {
-                TextField("Enter text", text: $draft.text)
+                TextField("Enter text", text: binding(\.text))
                     .focused($isTyping)
                     .submitLabel(.done)
                     .onSubmit { isTyping = false }
@@ -38,27 +56,24 @@ struct TextPanel: View {
             }
         }
         .onAppear {
-            session.beginInteractiveEdit()
+            session.beginInteractiveEdit(byDrag: false)
             if isNew { isTyping = true }
         }
         .onDisappear(perform: commit)
-        .onChange(of: draft) { _, item in
-            session.updateInteractiveEdit { $0.upsertText(item) }
-        }
     }
 
     private var styleControls: some View {
         VStack(spacing: Theme.Spacing.sm) {
-            SegmentedPicker(selection: $draft.font, options: TextFont.allCases) { font in
+            SegmentedPicker(selection: binding(\.font), options: TextFont.allCases) { font in
                 Text("Aa").font(.system(.body, design: Self.design(of: font)).weight(.bold))
             }
             .accessibilityIdentifier("editor.text.font")
 
-            HStack(spacing: Theme.Spacing.xs) {
+            HStack(spacing: 0) {
                 ForEach(Array(TextItem.palette.enumerated()), id: \.offset) { index, color in
-                    let isSelected = draft.color == color
+                    let isSelected = item.color == color
                     Button {
-                        draft.color = color
+                        binding(\.color).wrappedValue = color
                     } label: {
                         Circle()
                             .fill(Color(TextRenderer.cgColor(color)))
@@ -67,7 +82,10 @@ struct TextPanel: View {
                             .overlay {
                                 Circle().strokeBorder(isSelected ? Theme.Palette.accent : .clear, lineWidth: Theme.Size.selectionBorder)
                             }
-                            .frame(maxWidth: Theme.Size.minTapTarget, maxHeight: Theme.Size.minTapTarget)
+                            .aspectRatio(1, contentMode: .fit)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: Theme.Size.minTapTarget)
+                            .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Color \(index + 1)")
@@ -77,7 +95,7 @@ struct TextPanel: View {
             }
 
             HStack(spacing: Theme.Spacing.sm) {
-                SegmentedPicker(selection: $draft.background, options: TextBackground.allCases) { Text(Self.title(of: $0)) }
+                SegmentedPicker(selection: binding(\.background), options: TextBackground.allCases) { Text(Self.title(of: $0)) }
                     .accessibilityIdentifier("editor.text.background")
                 Button(role: .destructive, action: delete) {
                     Image(systemName: "trash")
@@ -88,13 +106,13 @@ struct TextPanel: View {
                 .accessibilityIdentifier("editor.text.delete")
             }
 
-            ValueSlider(value: $draft.size, range: TextItem.sizeRange)
+            ValueSlider(value: binding(\.size), range: TextItem.sizeRange)
                 .accessibilityLabel("Text size")
                 .accessibilityIdentifier("editor.text.size")
         }
     }
 
-    private var isEmpty: Bool { draft.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var isEmpty: Bool { item.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     private func finish() {
         commit()
@@ -102,7 +120,7 @@ struct TextPanel: View {
     }
 
     private func delete() {
-        draft.text = ""
+        binding(\.text).wrappedValue = ""
         finish()
     }
 
@@ -114,7 +132,8 @@ struct TextPanel: View {
                 session.cancelInteractiveEdit()
                 return
             }
-            session.updateInteractiveEdit { $0.removeText(draft.id) }
+            let id = item.id
+            session.updateInteractiveEdit { $0.removeText(id) }
         }
         Task { await session.endInteractiveEdit() }
     }

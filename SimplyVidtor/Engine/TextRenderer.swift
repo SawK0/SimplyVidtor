@@ -7,6 +7,18 @@ nonisolated enum TextRenderer {
     /// Text wraps at this fraction of the canvas width.
     static let maxWidthFraction = 0.9
 
+    /// Pixel size of `image(for:canvas:)`, without drawing.
+    static func size(for item: TextItem, canvas: CGSize) -> CGSize {
+        let fontSize = max(item.size * min(canvas.width, canvas.height), 1)
+        let padding = (fontSize * 0.3).rounded(.up)
+        let framesetter = CTFramesetterCreateWithAttributedString(
+            attributed(item.text, font: makeFont(item.font, size: fontSize), color: cgColor(item.color))
+        )
+        let constraint = CGSize(width: canvas.width * maxWidthFraction, height: .greatestFiniteMagnitude)
+        let text = CTFramesetterSuggestFrameSizeWithConstraints(framesetter, CFRange(), nil, constraint, nil)
+        return CGSize(width: (text.width + padding * 2).rounded(.up), height: (text.height + padding * 2).rounded(.up))
+    }
+
     static func image(for item: TextItem, canvas: CGSize) -> CGImage? {
         let fontSize = max(item.size * min(canvas.width, canvas.height), 1)
         let font = makeFont(item.font, size: fontSize)
