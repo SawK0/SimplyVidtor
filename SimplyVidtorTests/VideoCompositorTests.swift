@@ -100,6 +100,25 @@ struct VideoCompositorTests {
         #expect(transitions == [.crossfade])
     }
 
+    @Test func textIsDrawnOnlyWhileVisible() async throws {
+        // Spaces on a dark box: the frame centre shows the box color.
+        var timeline = Timeline(clips: [try photoClip()])
+        timeline.textItems = [TextItem(text: "            ", timelineStart: 1, duration: 1, size: 0.3, color: 0x0000FF, background: .box)]
+        let output = try await CompositionBuilder.build(timeline, store: store)
+        let during = TestMedia.centerColor(of: try await frame(of: output, at: 1.5))
+        let after = TestMedia.centerColor(of: try await frame(of: output, at: 2.5))
+        #expect(during.b > 200 && during.r < 50, "Expected the blue box, got \(during)")
+        #expect(after.r > 230, "Yellow photo again, got \(after)")
+    }
+
+    @Test func overlayStoreChangesShowWithoutRebuilding() async throws {
+        let overlays = OverlayStore()
+        let output = try await CompositionBuilder.build(Timeline(clips: [try photoClip()]), store: store, overlays: overlays)
+        overlays.textItems = [TextItem(text: "            ", timelineStart: 0, size: 0.3, color: 0x0000FF, background: .box)]
+        let color = TestMedia.centerColor(of: try await frame(of: output, at: 1))
+        #expect(color.b > 200, "Got \(color)")
+    }
+
     @Test func videoFrameIsNotBlack() async throws {
         let output = try await CompositionBuilder.build(Timeline(clips: [try videoClip()]), store: store)
         let color = TestMedia.centerColor(of: try await frame(of: output, at: 1))

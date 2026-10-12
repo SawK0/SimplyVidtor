@@ -216,4 +216,28 @@ struct EditorSessionTests {
         session.togglePlayback()
         #expect(!session.isPlaying)
     }
+
+    @Test func textEditCommitsAsOneUndoStep() async throws {
+        let session = try makeSession()
+        var item = TextItem(text: "H", timelineStart: 0)
+        session.beginInteractiveEdit()
+        session.updateInteractiveEdit { $0.upsertText(item) }
+        item.text = "Hello"
+        session.updateInteractiveEdit { $0.upsertText(item) }
+        await session.endInteractiveEdit()
+        #expect(session.timeline.textItems.map(\.text) == ["Hello"])
+        #expect(try session.project.loadTimeline().textItems.count == 1)
+
+        await session.undo()
+        #expect(session.timeline.textItems.isEmpty)
+    }
+
+    @Test func selectingTextClearsClipSelection() throws {
+        let session = try makeSession()
+        session.select(session.timeline.clips[0].id)
+        session.selectText(UUID())
+        #expect(session.selectedClipID == nil)
+        session.select(session.timeline.clips[0].id)
+        #expect(session.selectedTextID == nil)
+    }
 }

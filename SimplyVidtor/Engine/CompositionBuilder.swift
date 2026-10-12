@@ -16,8 +16,12 @@ nonisolated enum CompositionBuilder {
         let videoComposition: AVVideoComposition
     }
 
+    /// Text is drawn from `overlays` (made from the timeline when not given),
+    /// which the editor can update without a rebuild.
     @concurrent
-    static func build(_ timeline: Timeline, store: MediaStore) async throws -> Output {
+    static func build(_ timeline: Timeline, store: MediaStore, overlays: OverlayStore? = nil) async throws -> Output {
+        let overlays = overlays ?? OverlayStore()
+        overlays.textItems = timeline.textItems
         let composition = AVMutableComposition()
         let tracks = try Tracks(composition: composition)
         let blank = try await loadTracks(of: blankURL)
@@ -114,7 +118,9 @@ nonisolated enum CompositionBuilder {
         var cursor = CMTime.zero
         func add(until end: CMTime, _ layers: [ClipInstruction.Layer], transition: TransitionKind? = nil) {
             guard end > cursor else { return }
-            instructions.append(ClipInstruction(timeRange: CMTimeRange(start: cursor, end: end), layers: layers, transition: transition))
+            instructions.append(ClipInstruction(
+                timeRange: CMTimeRange(start: cursor, end: end), layers: layers, transition: transition, overlays: overlays
+            ))
             cursor = end
         }
         for index in clips.indices {

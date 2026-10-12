@@ -5,6 +5,7 @@ import Foundation
 nonisolated struct Timeline: Codable, Hashable, Sendable {
     var clips: [Clip] = []
     var audioItems: [AudioItem] = []
+    var textItems: [TextItem] = []
     /// `nil` matches the first clip's shape.
     var aspectRatio: AspectRatio?
 
@@ -149,6 +150,31 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         clips[index].adjustments = ClipAdjustments()
     }
 
+    // MARK: - Text
+
+    func textIndex(of id: TextItem.ID) -> Int? {
+        textItems.firstIndex { $0.id == id }
+    }
+
+    /// Replaces the item with the same id (or adds it), clamping its values.
+    mutating func upsertText(_ item: TextItem) {
+        var item = item
+        item.timelineStart = max(item.timelineStart, 0)
+        item.duration = max(item.duration, Clip.minimumDuration)
+        item.x = min(max(item.x, 0), 1)
+        item.y = min(max(item.y, 0), 1)
+        item.size = min(max(item.size, TextItem.sizeRange.lowerBound), TextItem.sizeRange.upperBound)
+        if let index = textIndex(of: item.id) {
+            textItems[index] = item
+        } else {
+            textItems.append(item)
+        }
+    }
+
+    mutating func removeText(_ id: TextItem.ID) {
+        textItems.removeAll { $0.id == id }
+    }
+
     /// Turns the clip 90° clockwise, carrying its crop along.
     mutating func rotateClip(_ id: Clip.ID) {
         guard let index = index(ofClip: id) else { return }
@@ -213,5 +239,18 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         guard let index = index(ofClip: id) else { return }
         let clip = clips.remove(at: index)
         clips.insert(clip, at: min(max(destination, 0), clips.count))
+    }
+}
+
+nonisolated extension Timeline {
+    /// Lists and fields added after the first release are decoded leniently.
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            clips: try c.decode([Clip].self, forKey: .clips),
+            audioItems: try c.decodeIfPresent([AudioItem].self, forKey: .audioItems) ?? [],
+            textItems: try c.decodeIfPresent([TextItem].self, forKey: .textItems) ?? [],
+            aspectRatio: try c.decodeIfPresent(AspectRatio.self, forKey: .aspectRatio)
+        )
     }
 }

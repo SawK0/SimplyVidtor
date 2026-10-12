@@ -282,6 +282,30 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testAddEditAndDeleteText() throws {
+        createProject()
+        app.buttons["editor.tool.adjust"].swipeLeft()
+        app.buttons["editor.tool.text"].tap()
+
+        let field = app.textFields["editor.text.field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 2))
+        field.typeText("Hello\n")
+        XCTAssertTrue(app.staticTexts["Add Text"].exists, "Still new after typing")
+        XCTAssertTrue(app.descendants(matching: .any)["editor.text.font"].waitForExistence(timeout: 2), "Style controls show once typing ends")
+        app.buttons["editor.text.color.1"].tap()
+        app.buttons["editor.panel.done"].tap()
+
+        let text = app.descendants(matching: .any)["timeline.text.0"]
+        XCTAssertTrue(text.waitForExistence(timeout: 3))
+        XCTAssertEqual(text.value as? String, "Hello")
+
+        text.tap()
+        XCTAssertEqual(app.textFields["editor.text.field"].value as? String, "Hello")
+        app.buttons["editor.text.delete"].tap()
+        XCTAssertTrue(text.waitForNonExistence(timeout: 3))
+    }
+
+    @MainActor
     func testCancellingPickerStaysOnProjects() throws {
         app.buttons["projects.newProject"].tap()
 

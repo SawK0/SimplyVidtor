@@ -10,12 +10,21 @@ final class EditorSession {
     private(set) var isPlaying = false
     private(set) var buildError: (any Error)?
     var selectedClipID: Clip.ID? {
-        didSet { if selectedClipID != nil { selectedTransitionClipID = nil } }
+        didSet {
+            if selectedClipID != nil {
+                selectedTransitionClipID = nil
+                selectedTextID = nil
+            }
+        }
     }
+    /// The text being edited; may not be on the timeline yet while it's new.
+    private(set) var selectedTextID: TextItem.ID?
     /// The cut after this clip, while editing its transition.
     private(set) var selectedTransitionClipID: Clip.ID?
 
     @ObservationIgnored let player = AVPlayer()
+    /// Lets text edits show in the preview without a rebuild.
+    @ObservationIgnored private let overlays = OverlayStore()
     @ObservationIgnored private let store: MediaStore
     @ObservationIgnored private var timeObserver: Any?
     @ObservationIgnored private var endObserver: (any NSObjectProtocol)?
@@ -103,8 +112,24 @@ final class EditorSession {
     /// Selects the cut after `id` (or deselects it if already selected).
     func selectTransition(after id: Clip.ID?) {
         let target = id == selectedTransitionClipID ? nil : id
-        if target != nil { selectedClipID = nil }
+        if target != nil {
+            selectedClipID = nil
+            selectedTextID = nil
+        }
         selectedTransitionClipID = target
+    }
+
+    func selectText(_ id: TextItem.ID?) {
+        if id != nil {
+            selectedClipID = nil
+            selectedTransitionClipID = nil
+        }
+        selectedTextID = id
+    }
+
+    var selectedText: TextItem? {
+        guard let id = selectedTextID, let index = timeline.textIndex(of: id) else { return nil }
+        return timeline.textItems[index]
     }
 
     /// The clip whose outgoing transition is selected.
@@ -189,7 +214,16 @@ final class EditorSession {
     func updateInteractiveEdit(_ edit: (inout Timeline) -> Void) {
         guard var copy = interactiveBase else { return }
         edit(&copy)
+        let textChanged = copy.textItems != timeline.textItems
         timeline = copy
+        if textChanged { showTextChanges() }
+    }
+
+    /// Pushes text to the compositor and redraws the current frame.
+    private func showTextChanges() {
+        overlays.textItems = timeline.textItems
+        guard let item = player.currentItem, let composition = item.videoComposition else { return }
+        item.videoComposition = composition.mutableCopy() as? AVVideoComposition
     }
 
     func endInteractiveEdit() async {
@@ -201,13 +235,15 @@ final class EditorSession {
 
     func cancelInteractiveEdit() {
         guard let base = interactiveBase else { return }
+        let textChanged = base.textItems != timeline.textItems
         timeline = base
         interactiveBase = nil
+        if textChanged { showTextChanges() }
     }
 
     func rebuild() async {
         do {
-            let output = try await CompositionBuilder.build(timeline, store: store)
+            let output = try await CompositionBuilder.build(timeline, store: store, overlays: overlays)
             let item = AVPlayerItem(asset: output.composition)
             item.audioMix = output.audioMix
             item.videoComposition = output.videoComposition

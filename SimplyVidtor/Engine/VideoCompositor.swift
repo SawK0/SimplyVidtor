@@ -32,15 +32,17 @@ nonisolated final class ClipInstruction: NSObject, AVVideoCompositionInstruction
     /// Empty draws black; two layers blend from the first to the second.
     let layers: [Layer]
     let transition: TransitionKind?
+    let overlays: OverlayStore?
     let enablePostProcessing = false
     let containsTweening: Bool
     let passthroughTrackID = kCMPersistentTrackID_Invalid
     let requiredSourceTrackIDs: [NSValue]?
 
-    init(timeRange: CMTimeRange, layers: [Layer], transition: TransitionKind? = nil) {
+    init(timeRange: CMTimeRange, layers: [Layer], transition: TransitionKind? = nil, overlays: OverlayStore? = nil) {
         self.timeRange = timeRange
         self.layers = layers
         self.transition = transition
+        self.overlays = overlays
         containsTweening = transition != nil
         let trackIDs = layers.compactMap { layer -> NSNumber? in
             if case .video(let trackID, _) = layer.content { NSNumber(value: trackID) } else { nil }
@@ -55,6 +57,7 @@ nonisolated final class VideoCompositor: NSObject, AVVideoCompositing, @unchecke
     private let context = CIContext(options: [.cacheIntermediates: false])
     private let queue = DispatchQueue(label: "VideoCompositor.render")
     private let photos = NSCache<NSURL, CIImage>()
+    private let texts = NSCache<NSString, CGImage>()
     private var renderSize = CGSize(width: 1080, height: 1920)
 
     let sourcePixelBufferAttributes: [String: any Sendable]? = [
@@ -75,7 +78,7 @@ nonisolated final class VideoCompositor: NSObject, AVVideoCompositing, @unchecke
                 request.finish(with: CocoaError(.featureUnsupported))
                 return
             }
-            context.render(frame(for: request), to: output)
+            context.render(withOverlays(frame(for: request), request: request), to: output)
             request.finish(withComposedVideoFrame: output)
         }
     }
@@ -102,6 +105,31 @@ nonisolated final class VideoCompositor: NSObject, AVVideoCompositing, @unchecke
                 ? dissolve(first, into: black, progress * 2)
                 : dissolve(black, into: canvases[1], (progress - 0.5) * 2)
         }
+    }
+
+    private func withOverlays(_ frame: CIImage, request: AVAsynchronousVideoCompositionRequest) -> CIImage {
+        guard let overlays = (request.videoCompositionInstruction as? ClipInstruction)?.overlays else { return frame }
+        let time = request.compositionTime.seconds
+        return overlays.textItems.filter { $0.isVisible(at: time) }.reduce(frame) { frame, item in
+            guard let image = textImage(for: item) else { return frame }
+            let picture = CIImage(cgImage: image)
+            let extent = picture.extent
+            // Rotation is clockwise on screen; Core Image's y axis points up.
+            let placed = picture
+                .transformed(by: CGAffineTransform(translationX: -extent.width / 2, y: -extent.height / 2))
+                .transformed(by: CGAffineTransform(rotationAngle: -item.rotation))
+                .transformed(by: CGAffineTransform(translationX: item.x * renderSize.width, y: (1 - item.y) * renderSize.height))
+            return placed.composited(over: frame)
+        }
+        .cropped(to: CGRect(origin: .zero, size: renderSize))
+    }
+
+    private func textImage(for item: TextItem) -> CGImage? {
+        let key = "\(item.text)|\(item.font)|\(item.color)|\(item.background)|\(item.size)|\(renderSize)" as NSString
+        if let cached = texts.object(forKey: key) { return cached }
+        guard let image = TextRenderer.image(for: item, canvas: renderSize) else { return nil }
+        texts.setObject(image, forKey: key)
+        return image
     }
 
     private func dissolve(_ from: CIImage, into to: CIImage, _ progress: Double) -> CIImage {

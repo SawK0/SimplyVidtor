@@ -298,6 +298,7 @@ struct TimelineTests {
     @Test func timelinesSavedBeforeAspectRatioDecode() throws {
         let timeline = try JSONDecoder().decode(Timeline.self, from: Data(#"{"clips":[],"audioItems":[]}"#.utf8))
         #expect(timeline.aspectRatio == nil)
+        #expect(timeline.textItems.isEmpty)
     }
 
     // MARK: - Transitions
@@ -354,5 +355,31 @@ struct TimelineTests {
         timeline.applyTransitionToAll(from: id)
         #expect(timeline.clips[1].transition?.kind == .dipToBlack)
         #expect(timeline.clips[2].transition == nil, "The last clip has no cut after it")
+    }
+
+    // MARK: - Text
+
+    @Test func upsertTextAddsThenReplacesAndClamps() {
+        var timeline = Timeline()
+        var item = TextItem(text: "Hi", timelineStart: 1)
+        timeline.upsertText(item)
+        #expect(timeline.textItems == [item])
+        item.x = 1.4
+        item.size = 5
+        item.timelineStart = -2
+        timeline.upsertText(item)
+        #expect(timeline.textItems.count == 1)
+        #expect(timeline.textItems[0].x == 1)
+        #expect(timeline.textItems[0].size == TextItem.sizeRange.upperBound)
+        #expect(timeline.textItems[0].timelineStart == 0)
+        timeline.removeText(item.id)
+        #expect(timeline.textItems.isEmpty)
+    }
+
+    @Test func textVisibilityIsHalfOpen() {
+        let item = TextItem(text: "Hi", timelineStart: 1, duration: 2)
+        #expect(!item.isVisible(at: 0.99))
+        #expect(item.isVisible(at: 1))
+        #expect(!item.isVisible(at: 3))
     }
 }

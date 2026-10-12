@@ -121,7 +121,8 @@ Chunk 5: history
 - [x] Transitions between clips: cross-fade and dip to black. Clips overlap by the transition (shortening the timeline); overlapping clips alternate between two video and audio lanes
 
 ### M4: Overlays (Figma 07)
-- [ ] Text track: add, edit inline with keyboard, font / style / color, drag and pinch on preview
+- [x] Text track: add, edit with keyboard, font / color / background / size; rendered by the compositor, live while editing via `OverlayStore`
+- [ ] Text: drag, pinch and rotate on the preview; move and trim text items on the timeline
 - [ ] Sticker track (emoji / bundled assets)
 - [ ] Audio: editor Audio tool opens the picker sheet on the Audio tab; trim, volume, fade in/out, waveform
 

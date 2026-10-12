@@ -50,7 +50,14 @@ struct EditorView: View {
             if phase != .active { try? context.save() }
         }
         .onChange(of: session?.selectedClipID) { _, id in
-            if id == nil, activeTool != .transition { activeTool = nil }
+            if id == nil, activeTool?.isClipTool == true { activeTool = nil }
+        }
+        .onChange(of: session?.selectedTextID) { _, id in
+            if id != nil {
+                activeTool = .text
+            } else if activeTool == .text {
+                activeTool = nil
+            }
         }
         .onChange(of: session?.selectedTransitionClipID) { _, id in
             if id != nil {
@@ -63,7 +70,10 @@ struct EditorView: View {
 
     /// Panels that replace the toolbar while open.
     private enum Tool {
-        case speed, volume, filters, adjust, crop, transition
+        case speed, volume, filters, adjust, crop, transition, text
+
+        /// Panels that act on the selected clip.
+        var isClipTool: Bool { self != .transition && self != .text }
     }
 
     @ViewBuilder
@@ -76,6 +86,11 @@ struct EditorView: View {
         case .adjust: AdjustPanel(session: session, onDone: close)
         case .crop: CropPanel(session: session, store: store, onDone: close)
         case .transition: TransitionPanel(session: session) { session.selectTransition(after: nil) }
+        case .text:
+            if let id = session.selectedTextID {
+                TextPanel(session: session, id: id) { session.selectText(nil) }
+                    .id(id)
+            }
         }
     }
 
@@ -198,7 +213,8 @@ struct EditorView: View {
                 Color.clear
             }
         }
-        .frame(height: Theme.Size.rulerHeight + Theme.Size.timelineClipHeight + Theme.Size.audioTrackHeight + 2 * Theme.Spacing.xs)
+        .frame(height: Theme.Size.rulerHeight + Theme.Size.timelineClipHeight + Theme.Size.textTrackHeight
+            + Theme.Size.audioTrackHeight + 3 * Theme.Spacing.xs)
         .padding(.vertical, Theme.Spacing.sm)
     }
 
@@ -222,7 +238,9 @@ struct EditorView: View {
                 ToolButton(title: "Adjust", systemImage: "slider.horizontal.3") { open(.adjust) }
                     .disabled(session?.timeline.clips.isEmpty ?? true)
                     .accessibilityIdentifier("editor.tool.adjust")
-                ToolButton(title: "Text", systemImage: "textformat") {}
+                ToolButton(title: "Text", systemImage: "textformat") { session?.selectText(UUID()) }
+                    .disabled(session == nil)
+                    .accessibilityIdentifier("editor.tool.text")
                 ToolButton(title: "Audio", systemImage: "music.note") { pickerTab = .audio }
                     .accessibilityIdentifier("editor.tool.audio")
                 ToolButton(title: "Crop", systemImage: "crop") { open(.crop) }

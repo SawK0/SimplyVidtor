@@ -22,6 +22,8 @@ struct TimelineTracksView: View {
                 .frame(height: Theme.Size.rulerHeight)
             clipTrack
                 .frame(height: Theme.Size.timelineClipHeight)
+            textTrack
+                .frame(height: Theme.Size.textTrackHeight)
             audioTrack
                 .frame(height: Theme.Size.audioTrackHeight)
         }
@@ -156,6 +158,35 @@ struct TimelineTracksView: View {
         let kind = clip.kind == .photo ? String(localized: "Photo") : String(localized: "Video")
         let seconds = clip.duration.formatted(.number.precision(.fractionLength(1)))
         return String(localized: "\(kind), \(seconds) seconds")
+    }
+
+    private var textTrack: some View {
+        ZStack(alignment: .leading) {
+            Color.clear
+            ForEach(Array(timeline.textItems.enumerated()), id: \.element.id) { index, item in
+                let isSelected = session.selectedTextID == item.id
+                Label(item.text, systemImage: "textformat")
+                    .font(Theme.Typography.caption)
+                    .lineLimit(1)
+                    .foregroundStyle(Theme.Palette.onAccent)
+                    .padding(.horizontal, Theme.Spacing.xs)
+                    .frame(width: metrics.width(of: item.duration), alignment: .leading)
+                    .frame(maxHeight: .infinity)
+                    .background(Theme.Palette.trackText, in: .rect(cornerRadius: Theme.Radius.clip))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: Theme.Radius.clip)
+                            .strokeBorder(isSelected ? Theme.Palette.textPrimary : .clear, lineWidth: Theme.Size.selectionBorder)
+                    }
+                    .offset(x: metrics.offset(for: item.timelineStart))
+                    .onTapGesture { session.selectText(item.id) }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Text \(index + 1)")
+                    .accessibilityValue(item.text)
+                    .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+                    .accessibilityAction { session.selectText(item.id) }
+                    .accessibilityIdentifier("timeline.text.\(index)")
+            }
+        }
     }
 
     private var audioTrack: some View {
