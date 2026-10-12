@@ -28,6 +28,7 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
     /// Silences the clip without losing its volume setting.
     var isMuted: Bool
     var filter: ClipFilter?
+    var adjustments: ClipAdjustments
 
     init(
         id: UUID = UUID(),
@@ -40,7 +41,8 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
         preservesPitch: Bool = true,
         volume: Double = 1,
         isMuted: Bool = false,
-        filter: ClipFilter? = nil
+        filter: ClipFilter? = nil,
+        adjustments: ClipAdjustments = ClipAdjustments()
     ) {
         self.id = id
         self.mediaFile = mediaFile
@@ -53,6 +55,7 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
         self.volume = volume
         self.isMuted = isMuted
         self.filter = filter
+        self.adjustments = adjustments
     }
 
     static func video(mediaFile: String, duration: Double) -> Clip {
@@ -70,7 +73,7 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
     var effectiveVolume: Double { isMuted ? 0 : volume }
 }
 
-extension Clip {
+nonisolated extension Clip {
     /// Fields added after the first release are decoded leniently.
     init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -85,7 +88,8 @@ extension Clip {
             preservesPitch: try c.decodeIfPresent(Bool.self, forKey: .preservesPitch) ?? true,
             volume: try c.decode(Double.self, forKey: .volume),
             isMuted: try c.decodeIfPresent(Bool.self, forKey: .isMuted) ?? false,
-            filter: try c.decodeIfPresent(ClipFilter.self, forKey: .filter)
+            filter: try c.decodeIfPresent(ClipFilter.self, forKey: .filter),
+            adjustments: try c.decodeIfPresent(ClipAdjustments.self, forKey: .adjustments) ?? ClipAdjustments()
         )
     }
 }

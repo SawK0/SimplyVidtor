@@ -247,6 +247,7 @@ struct TimelineTests {
         let clip = try JSONDecoder().decode(Clip.self, from: Data(json.utf8))
         #expect(clip.preservesPitch)
         #expect(!clip.isMuted)
+        #expect(clip.filter == nil && clip.adjustments.isIdentity)
         #expect(clip.speed == 2)
     }
 
@@ -268,5 +269,15 @@ struct TimelineTests {
         timeline.setFilter(ClipFilter(preset: .noir, intensity: 0.6), ofClip: id)
         timeline.applyFilterToAll(from: id)
         #expect(timeline.clips.allSatisfy { $0.filter == ClipFilter(preset: .noir, intensity: 0.6) })
+    }
+
+    @Test func adjustmentsAreClampedAndReset() {
+        var timeline = sample()
+        let id = timeline.clips[0].id
+        timeline.setAdjustment(.contrast, to: 3, ofClip: id)
+        timeline.setAdjustment(.warmth, to: -0.4, ofClip: id)
+        #expect(timeline.clips[0].adjustments == ClipAdjustments(contrast: 1, warmth: -0.4))
+        timeline.resetAdjustments(ofClip: id)
+        #expect(timeline.clips[0].adjustments.isIdentity)
     }
 }

@@ -43,4 +43,25 @@ struct FilterRendererTests {
         let source = image(r: 0.3, g: 0.6, b: 0.9)
         #expect(FilterRenderer.apply(ClipFilter(preset: preset), to: source).extent == source.extent)
     }
+
+    @Test func neutralAdjustmentsLeaveImageUnchanged() {
+        let source = image(r: 0.3, g: 0.6, b: 0.9)
+        #expect(FilterRenderer.apply(ClipAdjustments(), to: source) === source)
+    }
+
+    @Test func brightnessAndSaturationMoveTheRightWay() {
+        let source = image(r: 0.8, g: 0.5, b: 0.2)
+        let original = color(of: source)
+        let brighter = color(of: FilterRenderer.apply(ClipAdjustments(brightness: 0.5), to: source))
+        let desaturated = color(of: FilterRenderer.apply(ClipAdjustments(saturation: -1), to: source))
+        #expect(brighter.g > original.g)
+        #expect(abs(desaturated.r - desaturated.b) < 8, "Got \(desaturated)")
+    }
+
+    @Test func warmthShiftsWhiteBalance() {
+        let gray = image(r: 0.5, g: 0.5, b: 0.5)
+        let warm = color(of: FilterRenderer.apply(ClipAdjustments(warmth: 1), to: gray))
+        let cool = color(of: FilterRenderer.apply(ClipAdjustments(warmth: -1), to: gray))
+        #expect(warm.r > warm.b && cool.b > cool.r)
+    }
 }

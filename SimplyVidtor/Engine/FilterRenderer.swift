@@ -1,8 +1,32 @@
 import CoreImage
 import CoreImage.CIFilterBuiltins
 
-/// Core Image recipes for `FilterPreset`, shared by the compositor and panel thumbnails.
+/// Core Image recipes for adjustments and `FilterPreset`, shared by the
+/// compositor and panel thumbnails.
 nonisolated enum FilterRenderer {
+    /// Adjustments first, then the filter on top.
+    static func apply(_ adjustments: ClipAdjustments, filter: ClipFilter?, to image: CIImage) -> CIImage {
+        let adjusted = apply(adjustments, to: image)
+        return filter.map { apply($0, to: adjusted) } ?? adjusted
+    }
+
+    static func apply(_ adjustments: ClipAdjustments, to image: CIImage) -> CIImage {
+        guard !adjustments.isIdentity else { return image }
+        var output = image
+        if adjustments.brightness != 0 || adjustments.contrast != 0 || adjustments.saturation != 0 {
+            let controls = CIFilter.colorControls()
+            controls.inputImage = output
+            controls.brightness = Float(adjustments.brightness * 0.3)
+            controls.contrast = Float(1 + adjustments.contrast * 0.5)
+            controls.saturation = Float(1 + adjustments.saturation)
+            output = controls.outputImage ?? output
+        }
+        if adjustments.warmth != 0 {
+            output = whiteBalance(output, targetKelvin: 6500 - adjustments.warmth * 2500)
+        }
+        return output.cropped(to: image.extent)
+    }
+
     static func apply(_ filter: ClipFilter, to image: CIImage) -> CIImage {
         let intensity = min(max(filter.intensity, 0), 1)
         guard intensity > 0 else { return image }
@@ -35,10 +59,7 @@ nonisolated enum FilterRenderer {
             f.amount = 1
             filter = f
         case .warm, .cool:
-            let f = CIFilter.temperatureAndTint()
-            f.neutral = CIVector(x: 6500, y: 0)
-            f.targetNeutral = CIVector(x: preset == .warm ? 4500 : 9000, y: 0)
-            filter = f
+            return whiteBalance(image, targetKelvin: preset == .warm ? 4500 : 9000)
         case .chrome: filter = CIFilter.photoEffectChrome()
         case .fade: filter = CIFilter.photoEffectFade()
         case .instant: filter = CIFilter.photoEffectInstant()
@@ -47,5 +68,14 @@ nonisolated enum FilterRenderer {
         }
         filter.setValue(image, forKey: kCIInputImageKey)
         return filter.outputImage ?? image
+    }
+
+    /// Lower targets warm the image, higher ones cool it.
+    private static func whiteBalance(_ image: CIImage, targetKelvin: Double) -> CIImage {
+        let f = CIFilter.temperatureAndTint()
+        f.inputImage = image
+        f.neutral = CIVector(x: 6500, y: 0)
+        f.targetNeutral = CIVector(x: targetKelvin, y: 0)
+        return f.outputImage ?? image
     }
 }

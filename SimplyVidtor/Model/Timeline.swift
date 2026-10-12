@@ -132,6 +132,16 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         for i in clips.indices { clips[i].filter = filter }
     }
 
+    mutating func setAdjustment(_ parameter: ClipAdjustments.Parameter, to value: Double, ofClip id: Clip.ID) {
+        guard let index = index(ofClip: id) else { return }
+        clips[index].adjustments[parameter] = value
+    }
+
+    mutating func resetAdjustments(ofClip id: Clip.ID) {
+        guard let index = index(ofClip: id) else { return }
+        clips[index].adjustments = ClipAdjustments()
+    }
+
     /// Inserts a copy right after the original. Returns the copy's id.
     @discardableResult
     mutating func duplicateClip(_ id: Clip.ID) -> Clip.ID? {

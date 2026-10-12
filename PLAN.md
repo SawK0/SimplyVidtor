@@ -116,7 +116,7 @@ Chunk 5: history
 - [x] Speed panel: 0.1×–10× slider on a log scale (so 1× sits mid-track), keep pitch toggle (Curve tab later). Pitch is per track, so clips that don't keep pitch go on a second varispeed audio track
 - [x] Volume panel (0–100%, AVAudioMix can't amplify), mute that keeps the level
 - [x] Filters panel: presets with intensity, apply to all (`FilterRenderer`, drawn by `VideoCompositor`)
-- [ ] Adjust panel: brightness, contrast, saturation, warmth
+- [x] Adjust panel: brightness, contrast, saturation, warmth (applied before the filter)
 - [ ] Crop / rotate, aspect ratio (9:16, 1:1, 16:9)
 - [ ] Transitions between clips (cross-fade first)
 

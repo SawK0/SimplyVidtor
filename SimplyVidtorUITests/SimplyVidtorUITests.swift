@@ -201,6 +201,24 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testAdjustPanelChangesAndResets() throws {
+        createProject()
+        app.buttons["editor.tool.adjust"].tap()
+
+        let value = app.staticTexts["editor.adjust.value"]
+        XCTAssertTrue(value.waitForExistence(timeout: 2))
+        app.buttons["editor.adjust.warmth"].tap()
+        let slider = app.descendants(matching: .any)["editor.adjust.slider"]
+        slider.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        expectation(for: NSPredicate(format: "label BEGINSWITH '+'"), evaluatedWith: value)
+        waitForExpectations(timeout: 3)
+
+        app.buttons["editor.adjust.reset"].tap()
+        expectation(for: NSPredicate(format: "label == '0'"), evaluatedWith: value)
+        waitForExpectations(timeout: 3)
+    }
+
+    @MainActor
     func testCancellingPickerStaysOnProjects() throws {
         app.buttons["projects.newProject"].tap()
 

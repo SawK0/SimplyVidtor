@@ -50,7 +50,7 @@ struct EditorView: View {
 
     /// Panels that replace the toolbar while open.
     private enum Tool {
-        case speed, volume, filters
+        case speed, volume, filters, adjust
     }
 
     @ViewBuilder
@@ -60,6 +60,7 @@ struct EditorView: View {
         case .speed: SpeedPanel(session: session, onDone: close)
         case .volume: VolumePanel(session: session, onDone: close)
         case .filters: FiltersPanel(session: session, store: store, onDone: close)
+        case .adjust: AdjustPanel(session: session, onDone: close)
         }
     }
 
@@ -194,7 +195,9 @@ struct EditorView: View {
                 ToolButton(title: "Filters", systemImage: "camera.filters") { open(.filters) }
                     .disabled(session?.timeline.clips.isEmpty ?? true)
                     .accessibilityIdentifier("editor.tool.filters")
-                ToolButton(title: "Adjust", systemImage: "slider.horizontal.3") {}
+                ToolButton(title: "Adjust", systemImage: "slider.horizontal.3") { open(.adjust) }
+                    .disabled(session?.timeline.clips.isEmpty ?? true)
+                    .accessibilityIdentifier("editor.tool.adjust")
                 ToolButton(title: "Text", systemImage: "textformat") {}
                 ToolButton(title: "Audio", systemImage: "music.note") { pickerTab = .audio }
                     .accessibilityIdentifier("editor.tool.audio")
