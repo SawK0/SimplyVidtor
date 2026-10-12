@@ -89,7 +89,7 @@ Chunk 1: playback
 - [x] `CompositionBuilder`: timeline → `AVComposition` + audio mix (speed via `scaleTimeRange`, clip volume, audio items with fades). Photos and missing files are filled with a stretched bundled `blank.mov`, because AVFoundation drops trailing empty ranges
 - [x] `EditorSession`: owns the timeline and `AVPlayer`; `update` saves to the project and rebuilds
 - [x] Preview (`PlayerView`, no system controls), play/pause button and tap-to-toggle, `mm:ss.t` timecode
-- [ ] Fullscreen preview
+- [x] Fullscreen preview: shares the editor's player, scrubber, controls auto-hide while playing
 
 Chunk 2: timeline view
 - [x] Timeline (`EditorTimelineView`): ruler with zoom-aware ticks, filmstrip clips (`ThumbnailCache`), audio row, fixed center playhead

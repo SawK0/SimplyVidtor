@@ -264,6 +264,24 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testFullscreenPreviewPlaysAndCloses() throws {
+        createProject()
+        app.buttons["editor.fullscreen"].tap()
+        let playPause = app.buttons["fullscreen.playPause"]
+        XCTAssertTrue(playPause.waitForExistence(timeout: 3))
+        playPause.tap()
+        XCTAssertEqual(playPause.label, "Pause")
+
+        // Controls hide while playing; a tap brings them back.
+        XCTAssertTrue(playPause.waitForNonExistence(timeout: 5))
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let close = app.buttons["fullscreen.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 2))
+        close.tap()
+        XCTAssertTrue(app.buttons["editor.fullscreen"].waitForExistence(timeout: 3))
+    }
+
+    @MainActor
     func testCancellingPickerStaysOnProjects() throws {
         app.buttons["projects.newProject"].tap()
 

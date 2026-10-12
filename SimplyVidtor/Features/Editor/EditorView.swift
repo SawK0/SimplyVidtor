@@ -8,6 +8,7 @@ struct EditorView: View {
     @State private var pickerTab: MediaPickerTab?
     @State private var activeTool: Tool?
     @State private var isExporting = false
+    @State private var isFullscreen = false
     @State private var session: EditorSession?
     @State private var loadFailed = false
     @Environment(\.modelContext) private var context
@@ -31,6 +32,11 @@ struct EditorView: View {
         .background(Theme.Palette.bgBase)
         .fullScreenCover(item: $pickerTab) { tab in
             MediaPickerView(tab: tab, onCancel: { pickerTab = nil }, onAdd: append)
+        }
+        .fullScreenCover(isPresented: $isFullscreen) {
+            if let session {
+                FullscreenPreviewView(session: session) { isFullscreen = false }
+            }
         }
         .sheet(isPresented: $isExporting) {
             ExportSheet(onClose: { isExporting = false })
@@ -123,6 +129,15 @@ struct EditorView: View {
         .frame(maxHeight: .infinity)
         .contentShape(.rect)
         .onTapGesture { session?.togglePlayback() }
+        .overlay(alignment: .topTrailing) {
+            if session != nil {
+                CircleIconButton(systemImage: "arrow.up.left.and.arrow.down.right", accessibilityLabel: "Full screen") {
+                    isFullscreen = true
+                }
+                .padding(Theme.Spacing.xs)
+                .accessibilityIdentifier("editor.fullscreen")
+            }
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) { playbackBar }
     }
 
