@@ -93,6 +93,30 @@ final class EditorSession {
         selectedClipID = (id == selectedClipID) ? nil : id
     }
 
+    var selectedClip: Clip? {
+        guard let id = selectedClipID, let index = timeline.index(ofClip: id) else { return nil }
+        return timeline.clips[index]
+    }
+
+    /// Selects the clip under the playhead unless a clip is already selected.
+    /// Returns whether a clip is selected afterwards.
+    @discardableResult
+    func selectClipAtPlayheadIfNeeded() -> Bool {
+        if selectedClip == nil, let index = timeline.clipIndex(at: currentTime) {
+            selectedClipID = timeline.clips[index].id
+        }
+        return selectedClip != nil
+    }
+
+    /// Applies `edit` live while a drag is in progress, otherwise as a normal edit.
+    func edit(_ edit: @escaping (inout Timeline) -> Void) {
+        if isEditingInteractively {
+            updateInteractiveEdit(edit)
+        } else {
+            Task { await update(edit) }
+        }
+    }
+
     // MARK: - Toolbar actions
 
     var canSplit: Bool { timeline.canSplit(at: currentTime) }

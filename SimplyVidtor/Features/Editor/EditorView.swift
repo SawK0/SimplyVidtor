@@ -6,6 +6,7 @@ struct EditorView: View {
     let onClose: () -> Void
 
     @State private var pickerTab: MediaPickerTab?
+    @State private var activeTool: Tool?
     @State private var isExporting = false
     @State private var session: EditorSession?
     @State private var loadFailed = false
@@ -18,8 +19,14 @@ struct EditorView: View {
             topBar
             preview
             timeline
-            toolbar
+            if let session, activeTool == .speed {
+                SpeedPanel(session: session) { activeTool = nil }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else {
+                toolbar
+            }
         }
+        .animation(.snappy(duration: 0.25), value: activeTool)
         .foregroundStyle(Theme.Palette.textPrimary)
         .background(Theme.Palette.bgBase)
         .fullScreenCover(item: $pickerTab) { tab in
@@ -36,6 +43,19 @@ struct EditorView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { try? context.save() }
         }
+        .onChange(of: session?.selectedClipID) { _, id in
+            if id == nil { activeTool = nil }
+        }
+    }
+
+    /// Panels that replace the toolbar while open.
+    private enum Tool {
+        case speed
+    }
+
+    private func open(_ tool: Tool) {
+        guard session?.selectClipAtPlayheadIfNeeded() == true else { return }
+        activeTool = tool
     }
 
     private func openSession() async {
@@ -155,7 +175,9 @@ struct EditorView: View {
                 }
                 .disabled(!(session?.canSplit ?? false))
                 .accessibilityIdentifier("editor.tool.split")
-                ToolButton(title: "Speed", systemImage: "gauge.with.dots.needle.50percent") {}
+                ToolButton(title: "Speed", systemImage: "gauge.with.dots.needle.50percent") { open(.speed) }
+                    .disabled(session?.timeline.clips.isEmpty ?? true)
+                    .accessibilityIdentifier("editor.tool.speed")
                 ToolButton(title: "Volume", systemImage: "speaker.wave.2") {}
                 ToolButton(title: "Filters", systemImage: "camera.filters") {}
                 ToolButton(title: "Adjust", systemImage: "slider.horizontal.3") {}

@@ -20,6 +20,8 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
     var sourceStart: Double
     var sourceDuration: Double
     var speed: Double
+    /// Keeps voices natural when the speed changes; off gives the chipmunk effect.
+    var preservesPitch: Bool
     var volume: Double
 
     init(
@@ -30,6 +32,7 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
         sourceStart: Double = 0,
         sourceDuration: Double,
         speed: Double = 1,
+        preservesPitch: Bool = true,
         volume: Double = 1
     ) {
         self.id = id
@@ -39,6 +42,7 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
         self.sourceStart = sourceStart
         self.sourceDuration = sourceDuration
         self.speed = speed
+        self.preservesPitch = preservesPitch
         self.volume = volume
     }
 
@@ -53,4 +57,22 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
     /// Length on the timeline.
     var duration: Double { sourceDuration / speed }
     var sourceEnd: Double { sourceStart + sourceDuration }
+}
+
+extension Clip {
+    /// Fields added after the first release are decoded leniently.
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try c.decode(UUID.self, forKey: .id),
+            mediaFile: try c.decode(String.self, forKey: .mediaFile),
+            kind: try c.decode(MediaKind.self, forKey: .kind),
+            mediaDuration: try c.decodeIfPresent(Double.self, forKey: .mediaDuration),
+            sourceStart: try c.decode(Double.self, forKey: .sourceStart),
+            sourceDuration: try c.decode(Double.self, forKey: .sourceDuration),
+            speed: try c.decode(Double.self, forKey: .speed),
+            preservesPitch: try c.decodeIfPresent(Bool.self, forKey: .preservesPitch) ?? true,
+            volume: try c.decode(Double.self, forKey: .volume)
+        )
+    }
 }

@@ -70,4 +70,23 @@ struct CompositionBuilderTests {
         let output = try await CompositionBuilder.build(Timeline(), store: store)
         #expect(output.composition.duration == .zero)
     }
+
+    @Test func clipsThatDontKeepPitchUseAVarispeedTrack() async throws {
+        var chipmunk = try sampleClip()
+        chipmunk.speed = 2
+        chipmunk.preservesPitch = false
+        let timeline = Timeline(clips: [try sampleClip(), chipmunk])
+
+        let output = try await CompositionBuilder.build(timeline, store: store)
+        #expect(output.composition.tracks(withMediaType: .audio).count == 2)
+        let algorithms = output.audioMix.inputParameters.map(\.audioTimePitchAlgorithm)
+        #expect(algorithms == [.spectral, .varispeed])
+        #expect(abs(seconds(output.composition) - 3) < 0.02)
+    }
+
+    @Test func pitchKeepingClipsShareOneTrack() async throws {
+        let output = try await CompositionBuilder.build(Timeline(clips: [try sampleClip(), try sampleClip()]), store: store)
+        #expect(output.composition.tracks(withMediaType: .audio).count == 1)
+        #expect(output.audioMix.inputParameters.first?.audioTimePitchAlgorithm == .spectral)
+    }
 }

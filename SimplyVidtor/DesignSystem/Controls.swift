@@ -65,6 +65,7 @@ struct ValueSlider: View {
     let range: ClosedRange<Double>
     var step: Double?
     var origin: Double?
+    var scale: SliderMath.Scale = .linear
     var onEditingChanged: (Bool) -> Void = { _ in }
 
     @State private var isDragging = false
@@ -74,7 +75,7 @@ struct ValueSlider: View {
     var body: some View {
         GeometryReader { geo in
             let usable = max(geo.size.width - thumb, 1)
-            let x = { (v: Double) in CGFloat(SliderMath.fraction(of: v, in: range)) * usable }
+            let x = { (v: Double) in CGFloat(SliderMath.fraction(of: v, in: range, scale: scale)) * usable }
             let valueX = x(value)
             let originX = x(origin ?? range.lowerBound)
 
@@ -103,7 +104,7 @@ struct ValueSlider: View {
                             onEditingChanged(true)
                         }
                         let fraction = (drag.location.x - thumb / 2) / usable
-                        value = SliderMath.value(atFraction: fraction, in: range, step: step)
+                        value = SliderMath.value(atFraction: fraction, in: range, step: step, scale: scale)
                     }
                     .onEnded { _ in
                         isDragging = false
@@ -116,10 +117,10 @@ struct ValueSlider: View {
         .accessibilityElement()
         .accessibilityValue(Text(value, format: .number.precision(.fractionLength(0...2))))
         .accessibilityAdjustableAction { direction in
-            let delta = step ?? (range.upperBound - range.lowerBound) / 20
+            let fraction = SliderMath.fraction(of: value, in: range, scale: scale)
             switch direction {
-            case .increment: value = SliderMath.clamp(value + delta, to: range)
-            case .decrement: value = SliderMath.clamp(value - delta, to: range)
+            case .increment: value = SliderMath.value(atFraction: fraction + 0.05, in: range, step: step, scale: scale)
+            case .decrement: value = SliderMath.value(atFraction: fraction - 0.05, in: range, step: step, scale: scale)
             @unknown default: break
             }
         }
@@ -128,21 +129,37 @@ struct ValueSlider: View {
 
 /// Pure value <-> position mapping for `ValueSlider`.
 nonisolated enum SliderMath {
+    enum Scale: Sendable {
+        case linear
+        /// Equal ratios take equal distance, e.g. 0.1...10 puts 1 in the middle.
+        /// The range must be positive.
+        case logarithmic
+    }
+
     static func clamp(_ value: Double, to range: ClosedRange<Double>) -> Double {
         min(max(value, range.lowerBound), range.upperBound)
     }
 
     /// Position of `value` along the track, 0...1.
-    static func fraction(of value: Double, in range: ClosedRange<Double>) -> Double {
+    static func fraction(of value: Double, in range: ClosedRange<Double>, scale: Scale = .linear) -> Double {
         let span = range.upperBound - range.lowerBound
         guard span > 0 else { return 0 }
-        return (clamp(value, to: range) - range.lowerBound) / span
+        let value = clamp(value, to: range)
+        switch scale {
+        case .linear: return (value - range.lowerBound) / span
+        case .logarithmic: return log(value / range.lowerBound) / log(range.upperBound / range.lowerBound)
+        }
     }
 
     /// Value at a track position, snapped to `step` from the lower bound.
-    static func value(atFraction fraction: Double, in range: ClosedRange<Double>, step: Double? = nil) -> Double {
+    static func value(
+        atFraction fraction: Double, in range: ClosedRange<Double>, step: Double? = nil, scale: Scale = .linear
+    ) -> Double {
         let f = min(max(fraction, 0), 1)
-        var value = range.lowerBound + f * (range.upperBound - range.lowerBound)
+        var value = switch scale {
+        case .linear: range.lowerBound + f * (range.upperBound - range.lowerBound)
+        case .logarithmic: range.lowerBound * pow(range.upperBound / range.lowerBound, f)
+        }
         if let step, step > 0 {
             value = range.lowerBound + ((value - range.lowerBound) / step).rounded() * step
         }

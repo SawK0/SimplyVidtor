@@ -23,7 +23,15 @@ nonisolated enum CompositionBuilder {
               let clipAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
         else { throw CocoaError(.featureUnsupported) }
 
+        // Pitch is set per track, so clips that don't keep pitch get a second track.
+        let varispeedTrack = timeline.clips.contains { $0.kind == .video && !$0.preservesPitch }
+            ? composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
+            : nil
         let clipAudio = AVMutableAudioMixInputParameters(track: clipAudioTrack)
+        clipAudio.audioTimePitchAlgorithm = .spectral
+        let varispeedAudio = varispeedTrack.map { AVMutableAudioMixInputParameters(track: $0) }
+        varispeedAudio?.audioTimePitchAlgorithm = .varispeed
+        let clipAudioTracks = [clipAudioTrack] + (varispeedTrack.map { [$0] } ?? [])
         let blank = try await loadTracks(of: blankURL)
         var renderSize: CGSize?
         var instructions: [ClipInstruction] = []
@@ -38,7 +46,7 @@ nonisolated enum CompositionBuilder {
                   let sourceVideo = source.video
             else {
                 try insertBlank(blank, into: videoTrack, range: range)
-                clipAudioTrack.insertEmptyTimeRange(range)
+                clipAudioTracks.forEach { $0.insertEmptyTimeRange(range) }
                 let url = store.url(for: clip.mediaFile)
                 let isPhoto = clip.kind == .photo && FileManager.default.fileExists(atPath: url.path(percentEncoded: false))
                 instructions.append(ClipInstruction(timeRange: range, content: isPhoto ? .photo(url) : .blank))
@@ -47,17 +55,22 @@ nonisolated enum CompositionBuilder {
 
             let sourceRange = CMTimeRange(start: time(clip.sourceStart), duration: time(clip.sourceDuration))
             let inserted = CMTimeRange(start: range.start, duration: sourceRange.duration)
+            let audioTrack = clip.preservesPitch ? clipAudioTrack : varispeedTrack ?? clipAudioTrack
             try videoTrack.insertTimeRange(sourceRange, of: sourceVideo, at: range.start)
             if let audio = source.audio {
-                try clipAudioTrack.insertTimeRange(sourceRange, of: audio, at: range.start)
+                try audioTrack.insertTimeRange(sourceRange, of: audio, at: range.start)
             } else {
-                clipAudioTrack.insertEmptyTimeRange(inserted)
+                audioTrack.insertEmptyTimeRange(inserted)
             }
             if inserted.duration != range.duration {
                 videoTrack.scaleTimeRange(inserted, toDuration: range.duration)
-                clipAudioTrack.scaleTimeRange(inserted, toDuration: range.duration)
+                audioTrack.scaleTimeRange(inserted, toDuration: range.duration)
             }
-            clipAudio.setVolume(Float(clip.volume), at: range.start)
+            for track in clipAudioTracks where track !== audioTrack {
+                track.insertEmptyTimeRange(range)
+            }
+            let parameters = audioTrack === clipAudioTrack ? clipAudio : varispeedAudio ?? clipAudio
+            parameters.setVolume(Float(clip.volume), at: range.start)
 
             let orientation = CGImagePropertyOrientation(source.transform)
             if renderSize == nil {
@@ -70,7 +83,7 @@ nonisolated enum CompositionBuilder {
             ))
         }
 
-        var mixParameters = [clipAudio]
+        var mixParameters = [clipAudio] + (varispeedAudio.map { [$0] } ?? [])
         for item in timeline.audioItems {
             guard let source = try await loadTracks(of: store.url(for: item.mediaFile)),
                   let audio = source.audio,

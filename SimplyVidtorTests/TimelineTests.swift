@@ -238,4 +238,14 @@ struct TimelineTests {
         let data = try JSONEncoder().encode(timeline)
         #expect(try JSONDecoder().decode(Timeline.self, from: data) == timeline)
     }
+
+    @Test func clipsSavedBeforePitchOptionDecodeWithPitchKept() throws {
+        let json = """
+        {"id":"\(UUID().uuidString)","mediaFile":"a.mov","kind":"video","mediaDuration":2,
+         "sourceStart":0,"sourceDuration":2,"speed":2,"volume":1}
+        """
+        let clip = try JSONDecoder().decode(Clip.self, from: Data(json.utf8))
+        #expect(clip.preservesPitch)
+        #expect(clip.speed == 2)
+    }
 }

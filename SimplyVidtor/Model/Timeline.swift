@@ -105,6 +105,11 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         clips[index].speed = min(max(speed, range.lowerBound), range.upperBound)
     }
 
+    mutating func setPreservesPitch(_ preservesPitch: Bool, ofClip id: Clip.ID) {
+        guard let index = index(ofClip: id) else { return }
+        clips[index].preservesPitch = preservesPitch
+    }
+
     /// Inserts a copy right after the original. Returns the copy's id.
     @discardableResult
     mutating func duplicateClip(_ id: Clip.ID) -> Clip.ID? {

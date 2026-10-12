@@ -113,7 +113,7 @@ Chunk 5: history
 - [x] Autosave: every committed edit writes the project; SwiftData context saved when the editor closes or the app leaves the foreground
 
 ### M3: Clip tools (Figma 05, 06)
-- [ ] Speed panel: 0.1×–10× slider on a log scale (so 1× sits mid-track), keep pitch toggle (Curve tab later)
+- [x] Speed panel: 0.1×–10× slider on a log scale (so 1× sits mid-track), keep pitch toggle (Curve tab later). Pitch is per track, so clips that don't keep pitch go on a second varispeed audio track
 - [ ] Volume panel, mute
 - [ ] Filters panel: presets with intensity, apply to all
 - [ ] Adjust panel: brightness, contrast, saturation, warmth

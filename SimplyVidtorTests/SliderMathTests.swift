@@ -41,4 +41,16 @@ struct SliderMathTests {
         #expect(SliderMath.value(atFraction: 1, in: 0...10, step: 3) == 9)
         #expect(SliderMath.value(atFraction: 0.99, in: 0...10, step: 4) <= 10)
     }
+
+    @Test func logScalePutsGeometricMeanInTheMiddle() {
+        #expect(abs(SliderMath.fraction(of: 1, in: 0.1...10, scale: .logarithmic) - 0.5) < 1e-9)
+        #expect(SliderMath.fraction(of: 0.1, in: 0.1...10, scale: .logarithmic) == 0)
+        #expect(SliderMath.fraction(of: 10, in: 0.1...10, scale: .logarithmic) == 1)
+    }
+
+    @Test func logScaleValueIsInverseOfFraction() {
+        #expect(abs(SliderMath.value(atFraction: 0.5, in: 0.1...10, scale: .logarithmic) - 1) < 1e-9)
+        #expect(abs(SliderMath.value(atFraction: 0.75, in: 0.1...10, scale: .logarithmic) - 10.0.squareRoot()) < 1e-9)
+        #expect(abs(SliderMath.value(atFraction: 0.5, in: 0.1...10, step: 0.1, scale: .logarithmic) - 1) < 1e-9)
+    }
 }

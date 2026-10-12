@@ -138,6 +138,28 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testSpeedPanelChangesClipLength() throws {
+        createProject()
+        app.buttons["editor.tool.speed"].tap()
+
+        let slider = app.descendants(matching: .any)["editor.speed.slider"]
+        XCTAssertTrue(slider.waitForExistence(timeout: 2), "Speed selects the clip under the playhead")
+        XCTAssertEqual(app.staticTexts["editor.speed.value"].label, "1.0×")
+        // 1× sits mid-track; drag the thumb right toward 3×.
+        let thumb = slider.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        thumb.press(forDuration: 0.05, thenDragTo: slider.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5)))
+
+        let timecode = app.staticTexts["editor.timecode"]
+        let shorter = NSPredicate(format: "NOT (label ENDSWITH '/ 00:05.0')")
+        expectation(for: shorter, evaluatedWith: timecode)
+        waitForExpectations(timeout: 3)
+        XCTAssertNotEqual(app.staticTexts["editor.speed.value"].label, "1.0×")
+
+        app.buttons["editor.panel.done"].tap()
+        XCTAssertTrue(app.buttons["editor.tool.speed"].waitForExistence(timeout: 2))
+    }
+
+    @MainActor
     func testCancellingPickerStaysOnProjects() throws {
         app.buttons["projects.newProject"].tap()
 

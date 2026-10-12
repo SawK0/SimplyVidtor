@@ -66,13 +66,20 @@ struct ComponentGallery: View {
                     .background(Theme.Palette.bgSurface, in: .rect(cornerRadius: Theme.Radius.card))
                 }
 
+                section("Tool panel") {
+                    ToolPanel(title: "Speed", onDone: {}) {
+                        Toggle("Keep pitch", isOn: $smartHDR).toggleStyle(.accentSwitch)
+                    }
+                    .clipShape(.rect(cornerRadius: Theme.Radius.card))
+                }
+
                 section("Controls") {
                     SegmentedPicker(selection: $resolution, options: Resolution.allCases) { Text($0.rawValue) }
                     Toggle("Smart HDR", isOn: $smartHDR).toggleStyle(.accentSwitch)
                     VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                         Text("Speed \(speed, format: .number.precision(.fractionLength(1)))×")
                             .font(Theme.Typography.callout)
-                        ValueSlider(value: $speed, range: 0.1...10, step: 0.1)
+                        ValueSlider(value: $speed, range: 0.1...10, step: 0.1, origin: 1, scale: .logarithmic)
                             .accessibilityLabel("Speed")
                     }
                     VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
