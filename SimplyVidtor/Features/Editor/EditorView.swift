@@ -44,13 +44,20 @@ struct EditorView: View {
             if phase != .active { try? context.save() }
         }
         .onChange(of: session?.selectedClipID) { _, id in
-            if id == nil { activeTool = nil }
+            if id == nil, activeTool != .transition { activeTool = nil }
+        }
+        .onChange(of: session?.selectedTransitionClipID) { _, id in
+            if id != nil {
+                activeTool = .transition
+            } else if activeTool == .transition {
+                activeTool = nil
+            }
         }
     }
 
     /// Panels that replace the toolbar while open.
     private enum Tool {
-        case speed, volume, filters, adjust, crop
+        case speed, volume, filters, adjust, crop, transition
     }
 
     @ViewBuilder
@@ -62,6 +69,7 @@ struct EditorView: View {
         case .filters: FiltersPanel(session: session, store: store, onDone: close)
         case .adjust: AdjustPanel(session: session, onDone: close)
         case .crop: CropPanel(session: session, store: store, onDone: close)
+        case .transition: TransitionPanel(session: session) { session.selectTransition(after: nil) }
         }
     }
 

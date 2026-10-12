@@ -63,6 +63,43 @@ struct VideoCompositorTests {
         #expect(center.r > 200 && center.b < 50, "Only the red half is left, got \(center)")
     }
 
+    /// Yellow photo (3 s) into a missing clip (black), with a 1 s transition from 2 s to 3 s.
+    private func fadeToBlank(_ kind: TransitionKind) throws -> Timeline {
+        var photo = try photoClip()
+        photo.transition = ClipTransition(kind: kind, duration: 1)
+        return Timeline(clips: [photo, .video(mediaFile: "gone.mov", duration: 3)])
+    }
+
+    @Test func crossfadeBlendsBothClips() async throws {
+        let output = try await CompositionBuilder.build(try fadeToBlank(.crossfade), store: store)
+        #expect(abs(output.composition.duration.seconds - 5) < 0.02)
+        let mid = TestMedia.centerColor(of: try await frame(of: output, at: 2.5))
+        // Core Image blends in linear light, so 50% of 255 encodes to about 188.
+        #expect((160...215).contains(mid.r), "Halfway between yellow and black, got \(mid)")
+        let before = TestMedia.centerColor(of: try await frame(of: output, at: 1.5))
+        #expect(before.r > 230)
+    }
+
+    @Test func dipToBlackIsBlackAtTheMiddle() async throws {
+        let output = try await CompositionBuilder.build(try fadeToBlank(.dipToBlack), store: store)
+        let mid = TestMedia.centerColor(of: try await frame(of: output, at: 2.5))
+        #expect(mid.r + mid.g + mid.b < 40, "Got \(mid)")
+        let quarter = TestMedia.centerColor(of: try await frame(of: output, at: 2.25))
+        #expect((160...215).contains(quarter.r), "Half-faded yellow, got \(quarter)")
+    }
+
+    @Test func overlappingVideosUseTwoLanes() async throws {
+        var first = try videoClip()
+        first.transition = ClipTransition(kind: .crossfade, duration: 0.5)
+        let timeline = Timeline(clips: [first, try videoClip(), try videoClip()])
+        let output = try await CompositionBuilder.build(timeline, store: store)
+        #expect(output.composition.tracks(withMediaType: .video).count == 2)
+        #expect(output.composition.tracks(withMediaType: .audio).count == 2)
+        #expect(abs(output.composition.duration.seconds - 5.5) < 0.02)
+        let transitions = output.videoComposition.instructions.compactMap { ($0 as? ClipInstruction)?.transition }
+        #expect(transitions == [.crossfade])
+    }
+
     @Test func videoFrameIsNotBlack() async throws {
         let output = try await CompositionBuilder.build(Timeline(clips: [try videoClip()]), store: store)
         let color = TestMedia.centerColor(of: try await frame(of: output, at: 1))
@@ -102,7 +139,9 @@ struct VideoCompositorTests {
         try ToneGenerator.writeTone(to: audioURL, seconds: 9)
         var audio = AudioItem(mediaFile: try store.moveIn(audioURL), mediaDuration: 9)
         audio.timelineStart = 0
-        let timeline = Timeline(clips: [try photoClip(), fast, try videoClip()], audioItems: [audio])
+        var photo = try photoClip()
+        photo.transition = ClipTransition(kind: .crossfade, duration: 0.4)
+        let timeline = Timeline(clips: [photo, fast, try videoClip()], audioItems: [audio])
 
         let output = try await CompositionBuilder.build(timeline, store: store)
         let ranges = output.videoComposition.instructions.map(\.timeRange)

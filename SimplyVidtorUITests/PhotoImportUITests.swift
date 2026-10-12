@@ -31,7 +31,9 @@ final class PhotoImportUITests: XCTestCase {
         // 2 s video + 3 s photo.
         let timecode = app.staticTexts["editor.timecode"]
         XCTAssertTrue(timecode.waitForExistence(timeout: 15), "Editor did not open")
-        XCTAssertEqual(timecode.label, "00:00.0 / 00:05.0")
+        // The timecode shows 0 / 0 until the session has loaded.
+        expectation(for: NSPredicate(format: "label == '00:00.0 / 00:05.0'"), evaluatedWith: timecode)
+        waitForExpectations(timeout: 10)
         app.buttons["editor.close"].tap()
         XCTAssertTrue(app.buttons["projects.card.Untitled Project"].waitForExistence(timeout: 3))
         sleep(1)

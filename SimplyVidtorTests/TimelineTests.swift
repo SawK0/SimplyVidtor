@@ -248,7 +248,7 @@ struct TimelineTests {
         #expect(clip.preservesPitch)
         #expect(!clip.isMuted)
         #expect(clip.filter == nil && clip.adjustments.isIdentity)
-        #expect(clip.rotation == 0 && clip.crop == nil)
+        #expect(clip.rotation == 0 && clip.crop == nil && clip.transition == nil)
         #expect(clip.speed == 2)
     }
 
@@ -298,5 +298,61 @@ struct TimelineTests {
     @Test func timelinesSavedBeforeAspectRatioDecode() throws {
         let timeline = try JSONDecoder().decode(Timeline.self, from: Data(#"{"clips":[],"audioItems":[]}"#.utf8))
         #expect(timeline.aspectRatio == nil)
+    }
+
+    // MARK: - Transitions
+
+    /// Three 4 s clips with a 1 s cross-fade after the first.
+    private func withTransition() -> Timeline {
+        var timeline = Timeline(clips: (0..<3).map { .video(mediaFile: "\($0).mov", duration: 4) })
+        timeline.setTransition(ClipTransition(kind: .crossfade, duration: 1), afterClip: timeline.clips[0].id)
+        return timeline
+    }
+
+    @Test func transitionOverlapsClipsAndShortensTimeline() {
+        let timeline = withTransition()
+        #expect(timeline.overlap(afterClipAt: 0) == 1)
+        #expect(timeline.overlap(afterClipAt: 1) == 0)
+        #expect(timeline.startTime(ofClipAt: 1) == 3)
+        #expect(timeline.startTime(ofClipAt: 2) == 7)
+        #expect(timeline.duration == 11)
+    }
+
+    @Test func overlapNeverExceedsHalfAClip() {
+        var timeline = withTransition()
+        timeline.setTransition(ClipTransition(kind: .crossfade, duration: 2), afterClip: timeline.clips[0].id)
+        timeline.trimEnd(ofClip: timeline.clips[1].id, toSource: 1)
+        #expect(timeline.overlap(afterClipAt: 0) == 0.5)
+    }
+
+    @Test func overlapBelongsToTheIncomingClip() {
+        let timeline = withTransition()
+        #expect(timeline.clipIndex(at: 2.9) == 0)
+        #expect(timeline.clipIndex(at: 3.5) == 1)
+    }
+
+    @Test func lastClipsTransitionIsIgnored() {
+        var timeline = withTransition()
+        timeline.setTransition(ClipTransition(kind: .dipToBlack), afterClip: timeline.clips[2].id)
+        #expect(timeline.overlap(afterClipAt: 2) == 0)
+        #expect(timeline.duration == 11)
+    }
+
+    @Test func splitMovesTransitionToRightHalf() {
+        var timeline = withTransition()
+        let rightID = timeline.split(at: 1)
+        #expect(timeline.clips[0].transition == nil)
+        #expect(timeline.clips[1].id == rightID)
+        #expect(timeline.clips[1].transition?.kind == .crossfade)
+    }
+
+    @Test func transitionDurationIsClampedAndAppliesToAll() {
+        var timeline = withTransition()
+        let id = timeline.clips[0].id
+        timeline.setTransition(ClipTransition(kind: .dipToBlack, duration: 9), afterClip: id)
+        #expect(timeline.clips[0].transition?.duration == ClipTransition.durationRange.upperBound)
+        timeline.applyTransitionToAll(from: id)
+        #expect(timeline.clips[1].transition?.kind == .dipToBlack)
+        #expect(timeline.clips[2].transition == nil, "The last clip has no cut after it")
     }
 }

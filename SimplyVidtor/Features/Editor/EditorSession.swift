@@ -9,7 +9,11 @@ final class EditorSession {
     private(set) var currentTime: Double = 0
     private(set) var isPlaying = false
     private(set) var buildError: (any Error)?
-    var selectedClipID: Clip.ID?
+    var selectedClipID: Clip.ID? {
+        didSet { if selectedClipID != nil { selectedTransitionClipID = nil } }
+    }
+    /// The cut after this clip, while editing its transition.
+    private(set) var selectedTransitionClipID: Clip.ID?
 
     @ObservationIgnored let player = AVPlayer()
     @ObservationIgnored private let store: MediaStore
@@ -83,6 +87,9 @@ final class EditorSession {
 
     private func persistAndRebuild() async {
         if let id = selectedClipID, timeline.index(ofClip: id) == nil { selectedClipID = nil }
+        if let id = selectedTransitionClipID, !timeline.clips.dropLast().contains(where: { $0.id == id }) {
+            selectedTransitionClipID = nil
+        }
         try? project.save(timeline)
         await rebuild()
     }
@@ -91,6 +98,19 @@ final class EditorSession {
 
     func select(_ id: Clip.ID?) {
         selectedClipID = (id == selectedClipID) ? nil : id
+    }
+
+    /// Selects the cut after `id` (or deselects it if already selected).
+    func selectTransition(after id: Clip.ID?) {
+        let target = id == selectedTransitionClipID ? nil : id
+        if target != nil { selectedClipID = nil }
+        selectedTransitionClipID = target
+    }
+
+    /// The clip whose outgoing transition is selected.
+    var transitionClip: Clip? {
+        guard let id = selectedTransitionClipID, let index = timeline.index(ofClip: id) else { return nil }
+        return timeline.clips[index]
     }
 
     var selectedClip: Clip? {

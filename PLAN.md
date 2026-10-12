@@ -118,7 +118,7 @@ Chunk 5: history
 - [x] Filters panel: presets with intensity, apply to all (`FilterRenderer`, drawn by `VideoCompositor`)
 - [x] Adjust panel: brightness, contrast, saturation, warmth (applied before the filter)
 - [x] Crop / rotate, aspect ratio (9:16, 1:1, 16:9): per-clip quarter turns and normalized crop, project canvas on the timeline, full-screen crop editor over a still frame
-- [ ] Transitions between clips (cross-fade first)
+- [x] Transitions between clips: cross-fade and dip to black. Clips overlap by the transition (shortening the timeline); overlapping clips alternate between two video and audio lanes
 
 ### M4: Overlays (Figma 07)
 - [ ] Text track: add, edit inline with keyboard, font / style / color, drag and pinch on preview

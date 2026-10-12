@@ -243,6 +243,27 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testTransitionBetweenClipsShortensTimeline() throws {
+        createProject()
+        app.buttons["editor.addClip"].tap()
+        app.buttons["mediaPicker.add"].tap()
+        let cut = app.buttons["timeline.transition.0"]
+        XCTAssertTrue(cut.waitForExistence(timeout: 3))
+        let timecode = app.staticTexts["editor.timecode"]
+        XCTAssertTrue(timecode.label.hasSuffix("/ 00:10.0"))
+
+        cut.tap()
+        let kind = app.descendants(matching: .any)["editor.transition.kind"]
+        XCTAssertTrue(kind.waitForExistence(timeout: 2))
+        kind.buttons["Cross-fade"].tap()
+        expectation(for: NSPredicate(format: "label ENDSWITH '/ 00:09.5'"), evaluatedWith: timecode)
+        waitForExpectations(timeout: 3)
+
+        app.buttons["editor.panel.done"].tap()
+        XCTAssertTrue(app.buttons["editor.tool.split"].waitForExistence(timeout: 2))
+    }
+
+    @MainActor
     func testCancellingPickerStaysOnProjects() throws {
         app.buttons["projects.newProject"].tap()
 

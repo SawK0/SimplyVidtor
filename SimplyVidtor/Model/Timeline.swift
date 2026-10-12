@@ -9,15 +9,23 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
     var aspectRatio: AspectRatio?
 
     var duration: Double {
-        clips.reduce(0) { $0 + $1.duration }
+        startTime(ofClipAt: clips.count)
     }
 
     func index(ofClip id: Clip.ID) -> Int? {
         clips.firstIndex { $0.id == id }
     }
 
+    /// How long clip `index` and the next one play together. Never more than
+    /// half of either clip, so a transition can't swallow a clip.
+    func overlap(afterClipAt index: Int) -> Double {
+        guard index >= 0, index + 1 < clips.count, let transition = clips[index].transition else { return 0 }
+        return min(transition.duration, clips[index].duration / 2, clips[index + 1].duration / 2)
+    }
+
+    /// Start of clip `index`; `clips.count` gives the end of the timeline.
     func startTime(ofClipAt index: Int) -> Double {
-        clips[..<index].reduce(0) { $0 + $1.duration }
+        (0..<min(index, clips.count)).reduce(0) { $0 + clips[$1].duration - overlap(afterClipAt: $1) }
     }
 
     func timeRange(ofClipAt index: Int) -> Range<Double> {
@@ -25,15 +33,12 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         return start..<(start + clips[index].duration)
     }
 
-    /// The clip playing at `time`. A boundary belongs to the clip that starts
-    /// there; the very end belongs to the last clip.
+    /// The clip playing at `time`. A boundary (or overlap) belongs to the clip
+    /// that starts there; the very end belongs to the last clip.
     func clipIndex(at time: Double) -> Int? {
         guard !clips.isEmpty, time >= 0, time <= duration else { return nil }
-        var start = 0.0
-        for (index, clip) in clips.enumerated() {
-            let end = start + clip.duration
-            if time < end { return index }
-            start = end
+        for index in clips.indices.dropLast() where time < startTime(ofClipAt: index + 1) {
+            return index
         }
         return clips.count - 1
     }
@@ -54,10 +59,8 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
     /// Where new clips go for a playhead at `time`: before the clip under it if
     /// the playhead is in its first half, otherwise after it.
     func insertionIndex(at time: Double) -> Int {
-        var start = 0.0
-        for (index, clip) in clips.enumerated() {
-            if time < start + clip.duration / 2 { return index }
-            start += clip.duration
+        for (index, clip) in clips.enumerated() where time < startTime(ofClipAt: index) + clip.duration / 2 {
+            return index
         }
         return clips.count
     }
@@ -76,6 +79,8 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         right.sourceStart += sourceOffset
         right.sourceDuration -= sourceOffset
         clips[index].sourceDuration = sourceOffset
+        // The right half carries the transition into the next clip.
+        clips[index].transition = nil
         clips.insert(right, at: index + 1)
         return right.id
     }
@@ -164,6 +169,21 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         clips[index].crop = nil
     }
 
+    mutating func setTransition(_ transition: ClipTransition?, afterClip id: Clip.ID) {
+        guard let index = index(ofClip: id) else { return }
+        clips[index].transition = transition.map {
+            ClipTransition(kind: $0.kind, duration: min(max($0.duration, ClipTransition.durationRange.lowerBound),
+                                                         ClipTransition.durationRange.upperBound))
+        }
+    }
+
+    /// Gives every cut the same transition as the one after `id`.
+    mutating func applyTransitionToAll(from id: Clip.ID) {
+        guard let index = index(ofClip: id) else { return }
+        let transition = clips[index].transition
+        for i in clips.indices.dropLast() { clips[i].transition = transition }
+    }
+
     /// Inserts a copy right after the original. Returns the copy's id.
     @discardableResult
     mutating func duplicateClip(_ id: Clip.ID) -> Clip.ID? {
@@ -182,11 +202,8 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
     /// timeline's layout): after every other clip whose midpoint is left of it.
     func reorderDestination(movingClip id: Clip.ID, toTime time: Double) -> Int {
         var destination = 0
-        var start = 0.0
-        for clip in clips {
-            defer { start += clip.duration }
-            guard clip.id != id else { continue }
-            if start + clip.duration / 2 < time { destination += 1 }
+        for (index, clip) in clips.enumerated() where clip.id != id {
+            if startTime(ofClipAt: index) + clip.duration / 2 < time { destination += 1 }
         }
         return destination
     }

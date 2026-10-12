@@ -30,7 +30,10 @@ struct TimelineTracksView: View {
         .background {
             Color.clear
                 .contentShape(.rect)
-                .onTapGesture { session.select(nil) }
+                .onTapGesture {
+                    session.select(nil)
+                    session.selectTransition(after: nil)
+                }
         }
     }
 
@@ -38,8 +41,45 @@ struct TimelineTracksView: View {
         HStack(spacing: 0) {
             ForEach(Array(timeline.clips.enumerated()), id: \.element.id) { index, clip in
                 clipView(clip, at: index)
+                    // Clips joined by a transition overlap.
+                    .padding(.trailing, -metrics.width(of: timeline.overlap(afterClipAt: index)))
             }
         }
+        .overlay(alignment: .leading) {
+            if session.selectedClipID == nil, reordering == nil, leadingTrim == nil {
+                ForEach(Array(timeline.clips.dropLast().enumerated()), id: \.element.id) { index, clip in
+                    transitionButton(after: clip, at: index)
+                }
+            }
+        }
+    }
+
+    /// Sits on the cut (or the middle of the overlap) after clip `index`.
+    private func transitionButton(after clip: Clip, at index: Int) -> some View {
+        let hasTransition = clip.transition != nil
+        let isSelected = session.selectedTransitionClipID == clip.id
+        let center = timeline.startTime(ofClipAt: index + 1) + timeline.overlap(afterClipAt: index) / 2
+        return Button {
+            session.selectTransition(after: clip.id)
+        } label: {
+            Image(systemName: "arrow.left.and.right")
+                .font(Theme.Typography.caption.weight(.bold))
+                .foregroundStyle(hasTransition || isSelected ? Theme.Palette.onAccent : Theme.Palette.textPrimary)
+                .frame(width: Theme.Size.transitionButton, height: Theme.Size.transitionButton)
+                .background(hasTransition || isSelected ? Theme.Palette.accent : Theme.Palette.bgSurfaceRaised,
+                            in: .rect(cornerRadius: Theme.Radius.clip / 2))
+                .overlay {
+                    RoundedRectangle(cornerRadius: Theme.Radius.clip / 2)
+                        .strokeBorder(isSelected ? Theme.Palette.textPrimary : .clear, lineWidth: Theme.Size.selectionBorder)
+                }
+                .frame(width: Theme.Size.minTapTarget, height: Theme.Size.minTapTarget)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .offset(x: metrics.offset(for: center) - Theme.Size.minTapTarget / 2)
+        .accessibilityLabel(hasTransition ? "Transition \(index + 1), \(clip.transition?.kind.title ?? "")" : "Add transition \(index + 1)")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("timeline.transition.\(index)")
     }
 
     private func clipView(_ clip: Clip, at index: Int) -> some View {
