@@ -19,8 +19,8 @@ struct EditorView: View {
             topBar
             preview
             timeline
-            if let session, activeTool == .speed {
-                SpeedPanel(session: session) { activeTool = nil }
+            if let session, let activeTool {
+                panel(for: activeTool, session: session)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             } else {
                 toolbar
@@ -50,7 +50,16 @@ struct EditorView: View {
 
     /// Panels that replace the toolbar while open.
     private enum Tool {
-        case speed
+        case speed, volume
+    }
+
+    @ViewBuilder
+    private func panel(for tool: Tool, session: EditorSession) -> some View {
+        let close = { activeTool = nil }
+        switch tool {
+        case .speed: SpeedPanel(session: session, onDone: close)
+        case .volume: VolumePanel(session: session, onDone: close)
+        }
     }
 
     private func open(_ tool: Tool) {
@@ -178,7 +187,9 @@ struct EditorView: View {
                 ToolButton(title: "Speed", systemImage: "gauge.with.dots.needle.50percent") { open(.speed) }
                     .disabled(session?.timeline.clips.isEmpty ?? true)
                     .accessibilityIdentifier("editor.tool.speed")
-                ToolButton(title: "Volume", systemImage: "speaker.wave.2") {}
+                ToolButton(title: "Volume", systemImage: "speaker.wave.2") { open(.volume) }
+                    .disabled(session?.timeline.clips.isEmpty ?? true)
+                    .accessibilityIdentifier("editor.tool.volume")
                 ToolButton(title: "Filters", systemImage: "camera.filters") {}
                 ToolButton(title: "Adjust", systemImage: "slider.horizontal.3") {}
                 ToolButton(title: "Text", systemImage: "textformat") {}

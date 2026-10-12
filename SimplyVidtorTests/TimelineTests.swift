@@ -246,6 +246,19 @@ struct TimelineTests {
         """
         let clip = try JSONDecoder().decode(Clip.self, from: Data(json.utf8))
         #expect(clip.preservesPitch)
+        #expect(!clip.isMuted)
         #expect(clip.speed == 2)
+    }
+
+    @Test func volumeIsClampedAndMuteKeepsIt() {
+        var timeline = sample()
+        let id = timeline.clips[0].id
+        timeline.setVolume(1.5, ofClip: id)
+        #expect(timeline.clips[0].volume == 1)
+        timeline.setVolume(0.4, ofClip: id)
+        timeline.setMuted(true, ofClip: id)
+        #expect(timeline.clips[0].effectiveVolume == 0)
+        timeline.setMuted(false, ofClip: id)
+        #expect(timeline.clips[0].effectiveVolume == 0.4)
     }
 }

@@ -7,6 +7,8 @@ nonisolated enum MediaKind: String, Codable, Sendable {
 /// A span of one media file placed on the video track. Times are in seconds.
 nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
     static let speedRange: ClosedRange<Double> = 0.1...10
+    /// AVAudioMix can't amplify, so full volume is the original level.
+    static let volumeRange: ClosedRange<Double> = 0...1
     /// Shortest a clip may become on the timeline.
     static let minimumDuration: Double = 0.1
     static let defaultPhotoDuration: Double = 3
@@ -23,6 +25,8 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
     /// Keeps voices natural when the speed changes; off gives the chipmunk effect.
     var preservesPitch: Bool
     var volume: Double
+    /// Silences the clip without losing its volume setting.
+    var isMuted: Bool
 
     init(
         id: UUID = UUID(),
@@ -33,7 +37,8 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
         sourceDuration: Double,
         speed: Double = 1,
         preservesPitch: Bool = true,
-        volume: Double = 1
+        volume: Double = 1,
+        isMuted: Bool = false
     ) {
         self.id = id
         self.mediaFile = mediaFile
@@ -44,6 +49,7 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
         self.speed = speed
         self.preservesPitch = preservesPitch
         self.volume = volume
+        self.isMuted = isMuted
     }
 
     static func video(mediaFile: String, duration: Double) -> Clip {
@@ -57,6 +63,8 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
     /// Length on the timeline.
     var duration: Double { sourceDuration / speed }
     var sourceEnd: Double { sourceStart + sourceDuration }
+    /// The level actually played.
+    var effectiveVolume: Double { isMuted ? 0 : volume }
 }
 
 extension Clip {
@@ -72,7 +80,8 @@ extension Clip {
             sourceDuration: try c.decode(Double.self, forKey: .sourceDuration),
             speed: try c.decode(Double.self, forKey: .speed),
             preservesPitch: try c.decodeIfPresent(Bool.self, forKey: .preservesPitch) ?? true,
-            volume: try c.decode(Double.self, forKey: .volume)
+            volume: try c.decode(Double.self, forKey: .volume),
+            isMuted: try c.decodeIfPresent(Bool.self, forKey: .isMuted) ?? false
         )
     }
 }

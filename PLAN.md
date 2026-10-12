@@ -114,7 +114,7 @@ Chunk 5: history
 
 ### M3: Clip tools (Figma 05, 06)
 - [x] Speed panel: 0.1×–10× slider on a log scale (so 1× sits mid-track), keep pitch toggle (Curve tab later). Pitch is per track, so clips that don't keep pitch go on a second varispeed audio track
-- [ ] Volume panel, mute
+- [x] Volume panel (0–100%, AVAudioMix can't amplify), mute that keeps the level
 - [ ] Filters panel: presets with intensity, apply to all
 - [ ] Adjust panel: brightness, contrast, saturation, warmth
 - [ ] Crop / rotate, aspect ratio (9:16, 1:1, 16:9)

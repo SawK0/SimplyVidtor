@@ -70,7 +70,7 @@ nonisolated enum CompositionBuilder {
                 track.insertEmptyTimeRange(range)
             }
             let parameters = audioTrack === clipAudioTrack ? clipAudio : varispeedAudio ?? clipAudio
-            parameters.setVolume(Float(clip.volume), at: range.start)
+            parameters.setVolume(Float(clip.effectiveVolume), at: range.start)
 
             let orientation = CGImagePropertyOrientation(source.transform)
             if renderSize == nil {

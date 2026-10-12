@@ -160,6 +160,25 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testVolumePanelMutesClip() throws {
+        createProject()
+        app.buttons["editor.tool.volume"].tap()
+
+        let value = app.staticTexts["editor.volume.value"]
+        XCTAssertTrue(value.waitForExistence(timeout: 2))
+        XCTAssertEqual(value.label, "100%")
+        let slider = app.descendants(matching: .any)["editor.volume.slider"]
+        slider.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        expectation(for: NSPredicate(format: "label != '100%'"), evaluatedWith: value)
+        waitForExpectations(timeout: 3)
+
+        app.switches["editor.volume.mute"].switches.firstMatch.tap()
+        XCTAssertTrue(app.buttons["editor.undo"].isEnabled)
+        expectation(for: NSPredicate(format: "isEnabled == false"), evaluatedWith: slider)
+        waitForExpectations(timeout: 3)
+    }
+
+    @MainActor
     func testCancellingPickerStaysOnProjects() throws {
         app.buttons["projects.newProject"].tap()
 

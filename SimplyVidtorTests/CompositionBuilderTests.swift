@@ -89,4 +89,23 @@ struct CompositionBuilderTests {
         #expect(output.composition.tracks(withMediaType: .audio).count == 1)
         #expect(output.audioMix.inputParameters.first?.audioTimePitchAlgorithm == .spectral)
     }
+
+    @Test func mutedClipPlaysSilently() async throws {
+        var muted = try sampleClip()
+        muted.volume = 0.8
+        muted.isMuted = true
+        let output = try await CompositionBuilder.build(Timeline(clips: [try sampleClip(), muted]), store: store)
+
+        let parameters = try #require(output.audioMix.inputParameters.first)
+        #expect(volume(of: parameters, at: 1) == 1)
+        #expect(volume(of: parameters, at: 3) == 0)
+    }
+
+    private func volume(of parameters: AVAudioMixInputParameters, at seconds: Double) -> Float {
+        var start: Float = -1
+        var end: Float = -1
+        var range = CMTimeRange.zero
+        _ = parameters.getVolumeRamp(for: CompositionBuilder.time(seconds), startVolume: &start, endVolume: &end, timeRange: &range)
+        return start
+    }
 }
