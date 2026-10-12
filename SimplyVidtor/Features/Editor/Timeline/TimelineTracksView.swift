@@ -15,6 +15,8 @@ struct TimelineTracksView: View {
     @State private var leadingTrim: (index: Int, shift: CGFloat)?
     /// The selected text as it was when the current timeline drag began.
     @State private var textDragStart: TextItem?
+    /// The selected audio item as it was when the current drag began.
+    @State private var audioDragStart: AudioItem?
 
     private var timeline: Timeline { session.timeline }
 
@@ -220,18 +222,50 @@ struct TimelineTracksView: View {
     private var audioTrack: some View {
         ZStack(alignment: .leading) {
             Color.clear
-            ForEach(timeline.audioItems) { item in
-                Label("Audio", systemImage: "music.note")
-                    .labelStyle(.iconOnly)
-                    .font(Theme.Typography.caption)
-                    .foregroundStyle(Theme.Palette.onAccent)
-                    .padding(.horizontal, Theme.Spacing.xs)
-                    .frame(width: metrics.width(of: item.sourceDuration), alignment: .leading)
-                    .frame(maxHeight: .infinity)
-                    .background(Theme.Palette.trackAudio, in: .rect(cornerRadius: Theme.Radius.clip))
+            ForEach(Array(timeline.audioItems.enumerated()), id: \.element.id) { index, item in
+                let isSelected = session.selectedAudioID == item.id
+                AudioWaveformView(item: item, width: metrics.width(of: item.sourceDuration), store: store)
+                    .overlay {
+                        if isSelected {
+                            SelectionFrame(
+                                onLeadingDrag: { dragAudio(item, by: $0) { $0.trimmingStart(by: $1) } },
+                                onTrailingDrag: { dragAudio(item, by: $0) { $0.trimmingEnd(by: $1) } },
+                                onEnded: endAudioDrag
+                            )
+                        }
+                    }
+                    .gesture(
+                        DragGesture(minimumDistance: 4)
+                            .onChanged { drag in
+                                dragAudio(item, by: drag.translation.width) { $0.moved(toStart: $0.timelineStart + $1) }
+                            }
+                            .onEnded { _ in endAudioDrag() },
+                        including: isSelected ? .all : .subviews
+                    )
                     .offset(x: metrics.offset(for: item.timelineStart))
+                    .onTapGesture { session.selectAudio(isSelected ? nil : item.id) }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Audio \(index + 1)")
+                    .accessibilityValue(String(localized: "\(item.sourceDuration.formatted(.number.precision(.fractionLength(1)))) seconds"))
+                    .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+                    .accessibilityAction { session.selectAudio(item.id) }
+                    .accessibilityIdentifier("timeline.audio.\(index)")
             }
         }
+    }
+
+    /// Applies `change(start, seconds)` to the item as it was when the drag began.
+    private func dragAudio(_ item: AudioItem, by translation: CGFloat, _ change: @escaping (AudioItem, Double) -> AudioItem) {
+        let start = audioDragStart ?? item
+        audioDragStart = start
+        let delta = Double(translation / metrics.pointsPerSecond)
+        session.beginInteractiveEdit()
+        session.updateInteractiveEdit { $0.updateAudio(change(start, delta)) }
+    }
+
+    private func endAudioDrag() {
+        audioDragStart = nil
+        Task { await session.endInteractiveEdit() }
     }
 }
 
@@ -436,5 +470,58 @@ struct EditorTimelineView: View {
                 let step = direction == .increment ? 1.0 : -1.0
                 session.scrub(to: session.currentTime + step)
             }
+    }
+}
+
+/// An audio item on the timeline: its waveform, with fades shaded.
+private struct AudioWaveformView: View {
+    let item: AudioItem
+    let width: CGFloat
+    let store: MediaStore
+
+    @State private var peaks: [Float] = []
+
+    private static let barSpacing: CGFloat = 3
+
+    var body: some View {
+        Canvas { context, size in
+            guard !peaks.isEmpty, item.sourceDuration > 0 else { return }
+            var bars = Path()
+            for x in stride(from: CGFloat(0), to: size.width, by: Self.barSpacing) {
+                let time = item.sourceStart + Double(x / size.width) * item.sourceDuration
+                let index = min(max(Int(time * Double(Waveform.resolution)), 0), peaks.count - 1)
+                let height = max(CGFloat(peaks[index]) * size.height * 0.8, 1)
+                bars.addRect(CGRect(x: x, y: (size.height - height) / 2, width: Self.barSpacing - 1, height: height))
+            }
+            context.fill(bars, with: .color(Theme.Palette.onAccent.opacity(0.45)))
+
+            // Fades darken toward silence.
+            let perSecond = size.width / item.sourceDuration
+            var fades = Path()
+            if item.fadeIn > 0 {
+                fades.move(to: .zero)
+                fades.addLine(to: CGPoint(x: item.fadeIn * perSecond, y: 0))
+                fades.addLine(to: CGPoint(x: 0, y: size.height))
+            }
+            if item.fadeOut > 0 {
+                fades.move(to: CGPoint(x: size.width, y: 0))
+                fades.addLine(to: CGPoint(x: size.width - item.fadeOut * perSecond, y: 0))
+                fades.addLine(to: CGPoint(x: size.width, y: size.height))
+            }
+            context.fill(fades, with: .color(Theme.Palette.scrim))
+        }
+        .overlay(alignment: .leading) {
+            Image(systemName: "music.note")
+                .font(Theme.Typography.caption)
+                .foregroundStyle(Theme.Palette.onAccent)
+                .padding(.horizontal, Theme.Spacing.xs)
+        }
+        .frame(width: width)
+        .frame(maxHeight: .infinity)
+        .background(Theme.Palette.trackAudio)
+        .clipShape(.rect(cornerRadius: Theme.Radius.clip))
+        .task(id: item.mediaFile) {
+            peaks = await Waveform.shared.peaks(of: store.url(for: item.mediaFile))
+        }
     }
 }

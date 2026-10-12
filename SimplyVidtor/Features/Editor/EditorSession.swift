@@ -16,11 +16,13 @@ final class EditorSession {
             if selectedClipID != nil {
                 selectedTransitionClipID = nil
                 selectedTextID = nil
+                selectedAudioID = nil
             }
         }
     }
     /// The text being edited; may not be on the timeline yet while it's new.
     private(set) var selectedTextID: TextItem.ID?
+    private(set) var selectedAudioID: AudioItem.ID?
     /// The cut after this clip, while editing its transition.
     private(set) var selectedTransitionClipID: Clip.ID?
 
@@ -98,6 +100,7 @@ final class EditorSession {
 
     private func persistAndRebuild() async {
         if let id = selectedClipID, timeline.index(ofClip: id) == nil { selectedClipID = nil }
+        if let id = selectedAudioID, timeline.audioIndex(of: id) == nil { selectedAudioID = nil }
         if let id = selectedTransitionClipID, !timeline.clips.dropLast().contains(where: { $0.id == id }) {
             selectedTransitionClipID = nil
         }
@@ -120,6 +123,7 @@ final class EditorSession {
         if target != nil {
             selectedClipID = nil
             selectedTextID = nil
+            selectedAudioID = nil
         }
         selectedTransitionClipID = target
     }
@@ -129,11 +133,26 @@ final class EditorSession {
         if id != nil {
             selectedClipID = nil
             selectedTransitionClipID = nil
+            selectedAudioID = nil
         }
         selectedTextID = id
         if let item = selectedText, !item.isVisible(at: currentTime) {
             Task { await seek(to: item.timelineStart) }
         }
+    }
+
+    func selectAudio(_ id: AudioItem.ID?) {
+        if id != nil {
+            selectedClipID = nil
+            selectedTransitionClipID = nil
+            selectedTextID = nil
+        }
+        selectedAudioID = id
+    }
+
+    var selectedAudio: AudioItem? {
+        guard let id = selectedAudioID, let index = timeline.audioIndex(of: id) else { return nil }
+        return timeline.audioItems[index]
     }
 
     /// Live change to a text item; committed when the text panel finishes.

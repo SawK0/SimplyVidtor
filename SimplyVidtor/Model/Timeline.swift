@@ -150,6 +150,22 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         clips[index].adjustments = ClipAdjustments()
     }
 
+    // MARK: - Audio
+
+    func audioIndex(of id: AudioItem.ID) -> Int? {
+        audioItems.firstIndex { $0.id == id }
+    }
+
+    /// Replaces the item with the same id, clamping volume and fades.
+    mutating func updateAudio(_ item: AudioItem) {
+        guard let index = audioIndex(of: item.id) else { return }
+        audioItems[index] = item.clampingFades()
+    }
+
+    mutating func removeAudio(_ id: AudioItem.ID) {
+        audioItems.removeAll { $0.id == id }
+    }
+
     // MARK: - Text
 
     func textIndex(of id: TextItem.ID) -> Int? {

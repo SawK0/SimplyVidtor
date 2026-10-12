@@ -52,6 +52,13 @@ struct EditorView: View {
         .onChange(of: session?.selectedClipID) { _, id in
             if id == nil, activeTool?.isClipTool == true { activeTool = nil }
         }
+        .onChange(of: session?.selectedAudioID) { _, id in
+            if id != nil {
+                activeTool = .audio
+            } else if activeTool == .audio {
+                activeTool = nil
+            }
+        }
         .onChange(of: session?.selectedTextID) { _, id in
             if let item = session?.selectedText {
                 activeTool = item.isSticker ? .sticker : .text
@@ -72,10 +79,10 @@ struct EditorView: View {
 
     /// Panels that replace the toolbar while open.
     private enum Tool {
-        case speed, volume, filters, adjust, crop, transition, text, sticker
+        case speed, volume, filters, adjust, crop, transition, text, sticker, audio
 
         /// Panels that act on the selected clip.
-        var isClipTool: Bool { ![.transition, .text, .sticker].contains(self) }
+        var isClipTool: Bool { ![.transition, .text, .sticker, .audio].contains(self) }
     }
 
     @ViewBuilder
@@ -93,6 +100,7 @@ struct EditorView: View {
                 TextPanel(session: session, id: id) { session.selectText(nil) }
                     .id(id)
             }
+        case .audio: AudioPanel(session: session) { session.selectAudio(nil) }
         case .sticker:
             StickerPanel(session: session) {
                 session.selectText(nil)

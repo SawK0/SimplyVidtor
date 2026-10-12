@@ -124,7 +124,7 @@ Chunk 5: history
 - [x] Text track: add, edit with keyboard, font / color / background / size; rendered by the compositor, live while editing via `OverlayStore`
 - [x] Text: drag, pinch and rotate on the preview; move and trim text items on the timeline
 - [x] Stickers: emoji grid; stickers are `TextItem`s with `isSticker`, sharing text rendering, gestures and the overlay track (bundled image stickers later)
-- [ ] Audio: editor Audio tool opens the picker sheet on the Audio tab; trim, volume, fade in/out, waveform
+- [x] Audio: editor Audio tool opens the picker on the Audio tab; select an audio item to move or trim it on the timeline and set volume and fades in the Audio panel; waveform from `Waveform` (8 kHz mono peaks, cached)
 
 ### M5: Export (Figma 03, 08, 09)
 - [ ] Export sheet: resolution, frame rate, Smart HDR, estimated size

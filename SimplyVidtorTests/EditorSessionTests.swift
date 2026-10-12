@@ -250,4 +250,16 @@ struct EditorSessionTests {
         session.endDrag()
         #expect(!session.isDragging && session.isEditingInteractively)
     }
+
+    @Test func selectingAudioClearsOtherSelectionsAndDeletingClearsIt() async throws {
+        let session = try makeSession()
+        let item = AudioItem(mediaFile: "a.m4a", mediaDuration: 3)
+        await session.update { $0.audioItems = [item] }
+        session.select(session.timeline.clips[0].id)
+        session.selectAudio(item.id)
+        #expect(session.selectedClipID == nil && session.selectedAudio == item)
+
+        await session.update { $0.removeAudio(item.id) }
+        #expect(session.selectedAudioID == nil)
+    }
 }

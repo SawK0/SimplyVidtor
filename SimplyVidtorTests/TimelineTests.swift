@@ -403,4 +403,41 @@ struct TimelineTests {
         let decoded = try JSONDecoder().decode(TextItem.self, from: JSONSerialization.data(withJSONObject: json))
         #expect(decoded == item)
     }
+
+    // MARK: - Audio
+
+    /// 2 s to 6 s of a 10 s file, placed at 1 s.
+    private func audio() -> AudioItem {
+        AudioItem(mediaFile: "a.m4a", mediaDuration: 10, timelineStart: 1, sourceStart: 2, sourceDuration: 4)
+    }
+
+    @Test func audioTrimStartKeepsTheOutPoint() {
+        let trimmed = audio().trimmingStart(by: 1)
+        #expect(trimmed.sourceStart == 3 && trimmed.timelineStart == 2 && trimmed.sourceDuration == 3)
+        #expect(trimmed.timelineEnd == audio().timelineEnd && trimmed.sourceEnd == audio().sourceEnd)
+    }
+
+    @Test func audioTrimStartStopsAtFileStartAndTimelineStart() {
+        // Timeline start (1 s) runs out before the file's start (2 s).
+        let extended = audio().trimmingStart(by: -5)
+        #expect(extended.timelineStart == 0 && extended.sourceStart == 1)
+        #expect(abs(audio().trimmingStart(by: 10).sourceDuration - AudioItem.minimumDuration) < 1e-9)
+    }
+
+    @Test func audioTrimEndStopsAtFileEnd() {
+        #expect(audio().trimmingEnd(by: 20).sourceEnd == 10)
+        #expect(audio().trimmingEnd(by: -1).sourceDuration == 3)
+    }
+
+    @Test func fadesAreClampedToHalfTheItem() {
+        var item = audio()
+        var timeline = Timeline(audioItems: [item])
+        item.fadeIn = 3
+        item.fadeOut = 1.5
+        timeline.updateAudio(item)
+        #expect(timeline.audioItems[0].fadeIn == 2)
+        #expect(timeline.audioItems[0].fadeOut == 1.5)
+        let shorter = timeline.audioItems[0].trimmingEnd(by: -2)
+        #expect(shorter.fadeIn == 1 && shorter.fadeOut == 1)
+    }
 }

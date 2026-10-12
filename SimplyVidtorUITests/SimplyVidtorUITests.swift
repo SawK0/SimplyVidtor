@@ -363,6 +363,37 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testEditAndDeleteAudioItem() throws {
+        createProject()
+        app.buttons["editor.tool.adjust"].swipeLeft()
+        app.buttons["editor.tool.audio"].tap()
+        let row = app.buttons["audio.row.Sample Tone"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        app.buttons["mediaPicker.add"].tap()
+
+        let item = app.descendants(matching: .any)["timeline.audio.0"]
+        XCTAssertTrue(item.waitForExistence(timeout: 3))
+        item.tap()
+        let fadeIn = app.descendants(matching: .any)["editor.audio.fadeIn"]
+        XCTAssertTrue(fadeIn.waitForExistence(timeout: 2), "Tapping audio opens its panel")
+        fadeIn.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertTrue(app.buttons["editor.undo"].waitForEnabled(timeout: 2))
+
+        let trailing = app.descendants(matching: .any)["timeline.trim.trailing"]
+        XCTAssertTrue(trailing.exists)
+        let before = try XCTUnwrap(item.value as? String)
+        let handle = trailing.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        handle.press(forDuration: 0.2, thenDragTo: handle.withOffset(CGVector(dx: -40, dy: 0)),
+                     withVelocity: .slow, thenHoldForDuration: 0.1)
+        expectation(for: NSPredicate(format: "value != %@", before), evaluatedWith: item)
+        waitForExpectations(timeout: 3)
+
+        app.buttons["editor.audio.delete"].tap()
+        XCTAssertTrue(item.waitForNonExistence(timeout: 3))
+    }
+
+    @MainActor
     func testCancellingPickerStaysOnProjects() throws {
         app.buttons["projects.newProject"].tap()
 
@@ -378,7 +409,8 @@ final class SimplyVidtorUITests: XCTestCase {
     @MainActor
     func testEditorAudioToolOpensPickerOnAudioTab() throws {
         createProject()
-
+        // Audio is past the right edge of the scrolling toolbar.
+        app.buttons["editor.tool.adjust"].swipeLeft()
         app.buttons["editor.tool.audio"].tap()
         XCTAssertTrue(app.buttons["audio.importFiles"].waitForExistence(timeout: 3))
     }
