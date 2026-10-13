@@ -31,6 +31,7 @@ nonisolated struct TextItem: Codable, Identifiable, Hashable, Sendable {
     var background: TextBackground = .none
     /// An emoji sticker: drawn as is, without color or background.
     var isSticker = false
+    var motion = TextMotion()
 
     var timelineEnd: Double { timelineStart + duration }
 
@@ -86,7 +87,8 @@ nonisolated extension TextItem {
             font: try c.decode(TextFont.self, forKey: .font),
             color: try c.decode(UInt32.self, forKey: .color),
             background: try c.decode(TextBackground.self, forKey: .background),
-            isSticker: try c.decodeIfPresent(Bool.self, forKey: .isSticker) ?? false
+            isSticker: try c.decodeIfPresent(Bool.self, forKey: .isSticker) ?? false,
+            motion: try c.decodeIfPresent(TextMotion.self, forKey: .motion) ?? TextMotion()
         )
     }
 }

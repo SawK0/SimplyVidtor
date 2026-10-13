@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreImage
 import Foundation
 import Testing
 @testable import SimplyVidtor
@@ -113,6 +114,43 @@ struct VideoCompositorTests {
         let after = TestMedia.centerColor(of: try await frame(of: output, at: 2.5))
         #expect(during.b > 200 && during.r < 50, "Expected the blue box, got \(during)")
         #expect(after.r > 230, "Yellow photo again, got \(after)")
+    }
+
+    /// A blue box over the yellow photo, 1 s to 3 s, with `motion`.
+    private func motionFrame(_ motion: TextMotion, at seconds: Double) async throws -> (r: Int, g: Int, b: Int) {
+        var timeline = Timeline(clips: [try photoClip()])
+        var item = TextItem(text: "            ", timelineStart: 1, duration: 2, size: 0.3, color: 0x0000FF, background: .box)
+        item.motion = motion
+        timeline.textItems = [item]
+        let output = try await CompositionBuilder.build(timeline, store: store)
+        return TestMedia.centerColor(of: try await frame(of: output, at: seconds))
+    }
+
+    @Test func fadeInHidesTextAtItsStart() async throws {
+        var motion = TextMotion()
+        motion[.entrance] = AppliedMotion(MotionPresets.fade, role: .entrance)
+        let start = try await motionFrame(motion, at: 1)
+        let rest = try await motionFrame(motion, at: 2)
+        #expect(start.r > 230, "Still yellow at the start, got \(start)")
+        #expect(rest.b > 200 && rest.r < 50, "Blue once faded in, got \(rest)")
+    }
+
+    @Test func slideOutEndsHidden() async throws {
+        var motion = TextMotion()
+        var slide = AppliedMotion(MotionPresets.slide, role: .exit)
+        slide.strength = 2
+        motion[.exit] = slide
+        let color = try await motionFrame(motion, at: 2.995)
+        #expect(color.r > 230, "The box has gone, got \(color)")
+    }
+
+    @Test func wipeRevealsFromOneSide() {
+        let image = CIImage(color: .red).cropped(to: CGRect(x: 0, y: 0, width: 100, height: 50))
+        var state = MotionState(reveal: 0.2)
+        state.revealDirection = .left
+        #expect(VideoCompositor.revealed(image, state).extent == CGRect(x: 80, y: 0, width: 20, height: 50))
+        state.revealDirection = .up
+        #expect(VideoCompositor.revealed(image, state).extent == CGRect(x: 0, y: 0, width: 100, height: 10))
     }
 
     @Test func liveTextChangesShowWithoutRebuilding() async throws {

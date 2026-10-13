@@ -127,18 +127,46 @@ nonisolated class VideoCompositor: NSObject, AVVideoCompositing, @unchecked Send
     private func withOverlays(_ frame: CIImage, request: AVAsynchronousVideoCompositionRequest) -> CIImage {
         guard let live = (request.videoCompositionInstruction as? ClipInstruction)?.live else { return frame }
         let time = request.compositionTime.seconds
+        let unit = min(renderSize.width, renderSize.height)
         return live.textItems.filter { $0.isVisible(at: time) }.reduce(frame) { frame, item in
             guard let image = textImage(for: item) else { return frame }
-            let picture = CIImage(cgImage: image)
-            let extent = picture.extent
+            let motion = item.motion.state(at: time - item.timelineStart, duration: item.duration)
+            guard motion.opacity > 0, motion.scale > 0, motion.reveal > 0 else { return frame }
+            let source = CIImage(cgImage: image)
+            let extent = source.extent
+            var picture = Self.revealed(source, motion)
+            if motion.opacity < 1 {
+                let fade = CIFilter.colorMatrix()
+                fade.inputImage = picture
+                fade.aVector = CIVector(x: 0, y: 0, z: 0, w: motion.opacity)
+                picture = fade.outputImage ?? picture
+            }
             // Rotation is clockwise on screen; Core Image's y axis points up.
             let placed = picture
                 .transformed(by: CGAffineTransform(translationX: -extent.width / 2, y: -extent.height / 2))
-                .transformed(by: CGAffineTransform(rotationAngle: -item.rotation))
-                .transformed(by: CGAffineTransform(translationX: item.x * renderSize.width, y: (1 - item.y) * renderSize.height))
+                .transformed(by: CGAffineTransform(scaleX: motion.scale, y: motion.scale))
+                .transformed(by: CGAffineTransform(rotationAngle: -(item.rotation + motion.rotation)))
+                .transformed(by: CGAffineTransform(
+                    translationX: item.x * renderSize.width + motion.offsetX * unit,
+                    y: (1 - item.y) * renderSize.height - motion.offsetY * unit
+                ))
             return placed.composited(over: frame)
         }
         .cropped(to: CGRect(origin: .zero, size: renderSize))
+    }
+
+    /// Crops a wipe's hidden part. The visible part grows toward `revealDirection`.
+    static func revealed(_ image: CIImage, _ motion: MotionState) -> CIImage {
+        guard motion.reveal < 1 else { return image }
+        let e = image.extent, r = motion.reveal
+        let rect = switch motion.revealDirection {
+        case .right: CGRect(x: e.minX, y: e.minY, width: e.width * r, height: e.height)
+        case .left: CGRect(x: e.maxX - e.width * r, y: e.minY, width: e.width * r, height: e.height)
+        // Core Image's y axis points up, so "up" grows from the bottom (low y).
+        case .up: CGRect(x: e.minX, y: e.minY, width: e.width, height: e.height * r)
+        case .down: CGRect(x: e.minX, y: e.maxY - e.height * r, width: e.width, height: e.height * r)
+        }
+        return image.cropped(to: rect)
     }
 
     private func textImage(for item: TextItem) -> CGImage? {
