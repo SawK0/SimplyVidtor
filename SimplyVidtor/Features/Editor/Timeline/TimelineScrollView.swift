@@ -15,6 +15,8 @@ struct TimelineScrollView<Content: View>: UIViewRepresentable {
     var onLongPress: (UIGestureRecognizer.State, CGFloat) -> Void = { _, _ in }
     @ViewBuilder let content: Content
 
+    private static var jumpDistance: CGFloat { 40 }
+
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
     func makeUIView(context: Context) -> HostingScrollView<Content> {
@@ -37,8 +39,10 @@ struct TimelineScrollView<Content: View>: UIViewRepresentable {
         view.contentWidth = contentWidth
         view.isScrollEnabled = isScrollEnabled
         if !context.coordinator.isInteracting, abs(view.contentOffset.x - offset) > 0.5 {
+            // Jumps (ruler taps, undo) glide; playback's small steps don't.
+            let isJump = abs(view.contentOffset.x - offset) > Self.jumpDistance
             context.coordinator.isSettingOffset = true
-            view.contentOffset.x = offset
+            view.setContentOffset(CGPoint(x: offset, y: view.contentOffset.y), animated: isJump)
             context.coordinator.isSettingOffset = false
         }
     }

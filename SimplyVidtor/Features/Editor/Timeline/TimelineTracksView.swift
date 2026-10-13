@@ -24,6 +24,12 @@ struct TimelineTracksView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
             RulerView(duration: timeline.duration, metrics: metrics)
                 .frame(height: Theme.Size.rulerHeight)
+                .contentShape(.rect)
+                // The playhead stays centred; tapping a time scrolls it there.
+                .onTapGesture(coordinateSpace: .local) { location in
+                    Task { await session.seek(to: metrics.time(forOffset: location.x)) }
+                }
+                .accessibilityIdentifier("timeline.ruler")
             clipTrack
                 .frame(height: Theme.Size.timelineClipHeight)
             textTrack

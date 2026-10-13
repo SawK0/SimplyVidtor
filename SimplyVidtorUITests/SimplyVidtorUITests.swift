@@ -133,7 +133,8 @@ final class SimplyVidtorUITests: XCTestCase {
         timeline.pinch(withScale: 0.3, velocity: -1)
         sleep(1)
 
-        // Make the first clip distinguishable by trimming it, then deselect via the ruler.
+        // Make the first clip distinguishable by trimming it, then deselect by tapping
+        // the empty audio row (ruler taps move the playhead and keep the selection).
         clip(0).tap()
         let trailing = app.descendants(matching: .any)["timeline.trim.trailing"]
         XCTAssertTrue(trailing.waitForExistence(timeout: 2))
@@ -141,7 +142,7 @@ final class SimplyVidtorUITests: XCTestCase {
         handle.press(forDuration: 0.1, thenDragTo: handle.withOffset(CGVector(dx: -30, dy: 0)))
         let trimmedValue = try XCTUnwrap(clip(0).value as? String)
         XCTAssertNotEqual(trimmedValue, "Video, 5.0 seconds")
-        timeline.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.1)).tap()
+        timeline.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.88)).tap()
         XCTAssertTrue(trailing.waitForNonExistence(timeout: 2))
 
         // Long-press the middle of the first clip and drag it past the second.
@@ -481,6 +482,21 @@ final class SimplyVidtorUITests: XCTestCase {
         preview.press(forDuration: 0.1, thenDragTo: preview.withOffset(CGVector(dx: 60, dy: 0)),
                       withVelocity: .slow, thenHoldForDuration: 0.1)
         XCTAssertTrue(reset.waitForEnabled(timeout: 3), "The clip moved")
+    }
+
+    @MainActor
+    func testTappingRulerMovesPlayhead() throws {
+        createProject()
+        let timecode = app.staticTexts["editor.timecode"]
+        XCTAssertEqual(timecode.label, "00:00.0 / 00:05.0")
+        // Right of the centred playhead is later in time.
+        let ruler = app.descendants(matching: .any)["timeline.ruler"].firstMatch
+        let timeline = app.descendants(matching: .any)["editor.timeline"].frame
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: timeline.midX + 120, dy: ruler.frame.midY))
+            .tap()
+        expectation(for: NSPredicate(format: "NOT (label BEGINSWITH '00:00.0')"), evaluatedWith: timecode)
+        waitForExpectations(timeout: 3)
     }
 
     @MainActor

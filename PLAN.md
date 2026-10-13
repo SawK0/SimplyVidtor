@@ -136,7 +136,7 @@ Chunk 5: history
 - [x] Live look preview: adjust, filters, crop / rotate update while dragging, read per frame from `LiveStore` like text. Speed and volume apply on release (playback pauses while editing)
 - [x] Project format: frame shape (9:16, 16:9, 1:1, 4:5, 4:3), base resolution and frame rate (`ProjectFormat` on the timeline). New projects open the format sheet (preset "Match first clip"); the top bar reopens it. The preview shows the exact output frame (capped at 1080p); export defaults to the format
 - [x] Clip transform: position, scale, rotation, opacity, Fit / Fill (`ClipTransform`, part of the clip's look so it previews live). Drag / pinch / rotate the selected clip on the preview, or use the Transform panel. Static values first; animation comes in M7
-- [ ] Tap the ruler to jump the playhead (the playhead stays centred, like other mobile editors)
+- [x] Tap the ruler to jump the playhead (the playhead stays centred, like other mobile editors); jumps glide
 
 ### M7: Motion
 - [ ] Animation format: versioned keyframe data over 0...1 progress (opacity, offset, scale, rotation) with cubic-bezier easing. Built-in presets use the same format
