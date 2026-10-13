@@ -405,6 +405,25 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testManyOverlappingVideosShowAWarning() throws {
+        createProject()
+        let warning = app.buttons["editor.videoLoadWarning"]
+        for count in 1...4 {
+            XCTAssertFalse(warning.exists, "Fine with \(count) videos")
+            tapTool("editor.tool.overlay")
+            let add = app.buttons["mediaPicker.add"]
+            XCTAssertTrue(add.waitForExistence(timeout: 3))
+            add.tap()
+            XCTAssertTrue(app.descendants(matching: .any)["timeline.overlay.\(count - 1)"].waitForExistence(timeout: 3))
+        }
+        XCTAssertTrue(warning.waitForExistence(timeout: 2), "Five videos play at once")
+        warning.tap()
+        let show = app.buttons["Show Me"]
+        XCTAssertTrue(show.waitForExistence(timeout: 2))
+        show.tap()
+    }
+
+    @MainActor
     func testAddAndDeleteTrack() throws {
         createProject()
         tapTool("editor.tool.track")

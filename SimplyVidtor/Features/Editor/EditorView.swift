@@ -10,6 +10,7 @@ struct EditorView: View {
     @State private var pickerTab: MediaPickerTab?
     /// The picker's clips go on an overlay track instead of the main track.
     @State private var picksOverlay = false
+    @State private var explainsVideoLoad = false
     @State private var activeTool: Tool?
     @State private var isExporting = false
     @State private var isFullscreen = false
@@ -187,6 +188,11 @@ struct EditorView: View {
             }
         }
         .frame(maxHeight: .infinity)
+        .overlay(alignment: .topLeading) {
+            if let peak = session?.timeline.peakVideoCount, peak.count > Timeline.comfortableVideoCount {
+                videoLoadWarning(peak)
+            }
+        }
         .overlay(alignment: .topTrailing) {
             if session != nil {
                 CircleIconButton(systemImage: "arrow.up.left.and.arrow.down.right", accessibilityLabel: "Full screen") {
@@ -197,6 +203,27 @@ struct EditorView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { playbackBar }
+    }
+
+    /// Too many videos at one instant for the phone to decode smoothly.
+    private func videoLoadWarning(_ peak: (count: Int, time: Double)) -> some View {
+        Button { explainsVideoLoad = true } label: {
+            Label(String(localized: "\(peak.count) videos at once"), systemImage: "exclamationmark.triangle.fill")
+                .font(Theme.Typography.caption)
+                .foregroundStyle(Theme.Palette.accent)
+                .padding(.horizontal, Theme.Spacing.xs)
+                .frame(minHeight: Theme.Size.minTapTarget)
+                .background(Theme.Palette.scrim, in: .capsule)
+        }
+        .buttonStyle(.plain)
+        .padding(Theme.Spacing.xs)
+        .accessibilityIdentifier("editor.videoLoadWarning")
+        .alert("Many Videos at Once", isPresented: $explainsVideoLoad) {
+            Button("Show Me") { Task { await session?.seek(to: peak.time) } }
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("\(peak.count) videos play together at \(Timecode.string(peak.time)). Phones decode only a few videos at the same moment, so playback may stutter there. Try a photo, or shorten an overlay.")
+        }
     }
 
     private var playbackBar: some View {

@@ -188,4 +188,16 @@ struct TrackTests {
         #expect(timeline.timeRange(ofClipAt: 1) == 3..<4, "Takes the gap's place")
         #expect(timeline.timeRange(ofClipAt: 2) == 4..<6)
     }
+
+    @Test func peakVideoCountCountsMainTransitionsAndOverlays() {
+        var first = video(4)
+        first.transition = ClipTransition(kind: .crossfade, duration: 1)
+        var timeline = Timeline(clips: [first, video(4), .photo(mediaFile: "p.heic")])
+        #expect(timeline.peakVideoCount.count == 2, "Both clips play during the transition")
+        timeline.insertOverlay(video(2), at: 3.2)
+        timeline.insertOverlay(.photo(mediaFile: "p.heic"), at: 3.2)
+        let peak = timeline.peakVideoCount
+        #expect(peak.count == 3 && abs(peak.time - 3.2) < 1e-9, "Photos don't count")
+        #expect(Timeline(clips: [video(), video()]).peakVideoCount.count == 1, "Touching clips aren't at once")
+    }
 }

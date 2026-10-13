@@ -195,6 +195,32 @@ nonisolated extension Timeline {
         settleAudio(at: index)
     }
 
+    // MARK: - Decoding load
+
+    /// Phones decode only a few videos at the same instant; above this, playback may stutter.
+    static let comfortableVideoCount = 4
+
+    /// The most video clips (main track, transitions and overlays) playing at
+    /// one instant, and the first time it happens.
+    var peakVideoCount: (count: Int, time: Double) {
+        var ranges = clips.indices.filter { clips[$0].kind == .video }.map { timeRange(ofClipAt: $0) }
+        ranges += overlays.filter { $0.clip.kind == .video }.map(\.timeRange)
+        // Ends sort before starts at the same time, so clips that only touch don't count twice.
+        var events: [(time: Double, change: Int)] = []
+        for range in ranges {
+            events.append((range.lowerBound, 1))
+            events.append((range.upperBound, -1))
+        }
+        events.sort { a, b in a.time < b.time || (a.time == b.time && a.change < b.change) }
+        var current = 0
+        var peak = (count: 0, time: 0.0)
+        for (time, change) in events {
+            current += change
+            if current > peak.count { peak = (current, time) }
+        }
+        return peak
+    }
+
     // MARK: - Magnet
 
     /// Turning the magnet on closes the gaps between main-track clips.

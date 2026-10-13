@@ -158,7 +158,7 @@ Chunk 5: history
 - [x] Overlay clips in the editor: the Overlay tool adds picked clips at the playhead on a free overlay track; every clip tool (speed, filters, transform, keyframes, split, duplicate, delete) works on them
 - [x] Timeline rows per track (rows below the main track in drawing order, then audio); the timeline grows with tracks and scrolls vertically past two extra rows. Drag text, audio and overlays sideways in time and up or down to another track of the same kind
 - [x] Track menu in the toolbar adds an empty video, text or audio track; long press an empty part of a row to bring it forward, send it backward or delete it
-- [ ] Warn when more videos overlap than the device can decode at once
+- [x] Warn when more than 4 videos (main, transitions, overlays) play at one instant (`Timeline.peakVideoCount`); the warning jumps to the spot. The limit is a guess until it's measured on devices
 
 ### M10: Polish
 - [ ] Haptics on snap and selection
