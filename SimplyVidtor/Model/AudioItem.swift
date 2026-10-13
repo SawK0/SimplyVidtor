@@ -11,6 +11,7 @@ nonisolated struct AudioItem: Codable, Identifiable, Hashable, Sendable {
     var volume: Double
     var fadeIn: Double
     var fadeOut: Double
+    var trackID: Track.ID
 
     init(
         id: UUID = UUID(),
@@ -21,7 +22,8 @@ nonisolated struct AudioItem: Codable, Identifiable, Hashable, Sendable {
         sourceDuration: Double? = nil,
         volume: Double = 1,
         fadeIn: Double = 0,
-        fadeOut: Double = 0
+        fadeOut: Double = 0,
+        trackID: Track.ID = Track.firstAudio.id
     ) {
         self.id = id
         self.mediaFile = mediaFile
@@ -32,6 +34,7 @@ nonisolated struct AudioItem: Codable, Identifiable, Hashable, Sendable {
         self.volume = volume
         self.fadeIn = fadeIn
         self.fadeOut = fadeOut
+        self.trackID = trackID
     }
 
     var timelineEnd: Double { timelineStart + sourceDuration }
@@ -76,5 +79,24 @@ nonisolated struct AudioItem: Codable, Identifiable, Hashable, Sendable {
         item.fadeIn = min(max(fadeIn, 0), item.maximumFade)
         item.fadeOut = min(max(fadeOut, 0), item.maximumFade)
         return item
+    }
+}
+
+nonisolated extension AudioItem {
+    /// Fields added after the first release are decoded leniently.
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try c.decode(UUID.self, forKey: .id),
+            mediaFile: try c.decode(String.self, forKey: .mediaFile),
+            mediaDuration: try c.decode(Double.self, forKey: .mediaDuration),
+            timelineStart: try c.decode(Double.self, forKey: .timelineStart),
+            sourceStart: try c.decode(Double.self, forKey: .sourceStart),
+            sourceDuration: try c.decode(Double.self, forKey: .sourceDuration),
+            volume: try c.decode(Double.self, forKey: .volume),
+            fadeIn: try c.decodeIfPresent(Double.self, forKey: .fadeIn) ?? 0,
+            fadeOut: try c.decodeIfPresent(Double.self, forKey: .fadeOut) ?? 0,
+            trackID: try c.decodeIfPresent(UUID.self, forKey: .trackID) ?? Track.firstAudio.id
+        )
     }
 }

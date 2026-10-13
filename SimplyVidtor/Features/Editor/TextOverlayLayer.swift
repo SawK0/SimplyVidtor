@@ -125,8 +125,8 @@ struct TextOverlayLayer: View {
         in video: CGRect
     ) {
         guard let clip = session.selectedClip,
-              let index = session.timeline.index(ofClip: clip.id),
-              session.timeline.timeRange(ofClipAt: index).contains(session.currentTime) || session.timeline.clips.count == 1
+              let range = session.timeline.timeRange(ofClip: clip.id),
+              range.contains(session.currentTime) || session.timeline.clips.count == 1
         else { return }
         let source = session.selectedClipSourceTime
         let start = clipGestureStart ?? clip.transform(atSource: source ?? clip.sourceStart)

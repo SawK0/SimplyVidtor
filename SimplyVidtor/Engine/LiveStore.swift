@@ -28,7 +28,7 @@ nonisolated final class LiveStore: @unchecked Sendable {
 
     /// Mirrors the timeline's text and looks.
     func update(from timeline: Timeline) {
-        let looks = Dictionary(timeline.clips.map { ($0.id, $0.look) }, uniquingKeysWith: { first, _ in first })
+        let looks = Dictionary(timeline.allClips.map { ($0.id, $0.look) }, uniquingKeysWith: { first, _ in first })
         lock.withLock {
             texts = timeline.textItems
             clipLooks = looks

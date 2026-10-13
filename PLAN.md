@@ -152,7 +152,7 @@ Chunk 5: history
 - [x] Text and sticker keyframes (position, size, rotation; times from the item's start, kept in place when its start is trimmed), combined with their In / Out / Loop animations. Keyframe controls sit next to the size slider in the Text and Stickers panels
 
 ### M9: Layers
-- [ ] Track model: the main video track plus any number of overlay video, text and audio tracks; higher tracks draw on top
+- [x] Track model (`Tracks.swift`): the main video track plus any number of overlay video, text and audio tracks; higher tracks draw on top. Items refer to tracks by id; an item landing on another hops to the nearest free track (or a new one). Clip tools find clips on any track (`Timeline[clip:]`, `modifyClip`)
 - [ ] Main track magnet: on (default) keeps clips back to back; off lets clips sit anywhere with gaps. Turning it back on closes gaps
 - [ ] Overlay clips (picture in picture) with their own transform, looks and keyframes; free placement in time on their track
 - [ ] Add track button, move items between tracks, timeline rows per track

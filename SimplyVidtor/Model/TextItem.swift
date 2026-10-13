@@ -35,6 +35,7 @@ nonisolated struct TextItem: Codable, Identifiable, Hashable, Sendable {
     /// Times are seconds from the item's start. When there are any, they
     /// replace the static position, size and rotation.
     var keyframes = KeyframeTrack<TextPlacement>()
+    var trackID = Track.firstText.id
 
     var placement: TextPlacement {
         get { TextPlacement(x: x, y: y, size: size, rotation: rotation) }
@@ -140,7 +141,8 @@ nonisolated extension TextItem {
             background: try c.decode(TextBackground.self, forKey: .background),
             isSticker: try c.decodeIfPresent(Bool.self, forKey: .isSticker) ?? false,
             motion: try c.decodeIfPresent(TextMotion.self, forKey: .motion) ?? TextMotion(),
-            keyframes: try c.decodeIfPresent(KeyframeTrack<TextPlacement>.self, forKey: .keyframes) ?? KeyframeTrack()
+            keyframes: try c.decodeIfPresent(KeyframeTrack<TextPlacement>.self, forKey: .keyframes) ?? KeyframeTrack(),
+            trackID: try c.decodeIfPresent(UUID.self, forKey: .trackID) ?? Track.firstText.id
         )
     }
 }

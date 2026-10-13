@@ -38,6 +38,8 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
     /// Times are in source seconds, so trims and speed changes keep them on the same frames.
     /// When there are any, they replace `transform`.
     var transformKeyframes: KeyframeTrack<ClipTransform>
+    /// Empty time before this clip on the main track, used only with the magnet off.
+    var gapBefore: Double
 
     init(
         id: UUID = UUID(),
@@ -56,7 +58,8 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
         crop: CropRect? = nil,
         transition: ClipTransition? = nil,
         transform: ClipTransform = ClipTransform(),
-        transformKeyframes: KeyframeTrack<ClipTransform> = KeyframeTrack()
+        transformKeyframes: KeyframeTrack<ClipTransform> = KeyframeTrack(),
+        gapBefore: Double = 0
     ) {
         self.id = id
         self.mediaFile = mediaFile
@@ -75,6 +78,7 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
         self.transition = transition
         self.transform = transform
         self.transformKeyframes = transformKeyframes
+        self.gapBefore = gapBefore
     }
 
     static func video(mediaFile: String, duration: Double) -> Clip {
@@ -123,7 +127,8 @@ nonisolated extension Clip {
             crop: try c.decodeIfPresent(CropRect.self, forKey: .crop),
             transition: try c.decodeIfPresent(ClipTransition.self, forKey: .transition),
             transform: try c.decodeIfPresent(ClipTransform.self, forKey: .transform) ?? ClipTransform(),
-            transformKeyframes: try c.decodeIfPresent(KeyframeTrack<ClipTransform>.self, forKey: .transformKeyframes) ?? KeyframeTrack()
+            transformKeyframes: try c.decodeIfPresent(KeyframeTrack<ClipTransform>.self, forKey: .transformKeyframes) ?? KeyframeTrack(),
+            gapBefore: try c.decodeIfPresent(Double.self, forKey: .gapBefore) ?? 0
         )
     }
 }

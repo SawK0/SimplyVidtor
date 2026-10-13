@@ -102,7 +102,7 @@ final class EditorSession {
     }
 
     private func persistAndRebuild() async {
-        if let id = selectedClipID, timeline.index(ofClip: id) == nil { selectedClipID = nil }
+        if let id = selectedClipID, timeline[clip: id] == nil { selectedClipID = nil }
         if let id = selectedAudioID, timeline.audioIndex(of: id) == nil { selectedAudioID = nil }
         if let id = selectedTransitionClipID, !timeline.clips.dropLast().contains(where: { $0.id == id }) {
             selectedTransitionClipID = nil
@@ -178,24 +178,21 @@ final class EditorSession {
 
     /// The selected clip's source time at the playhead; `nil` when the playhead is off the clip.
     var selectedClipSourceTime: Double? {
-        guard let id = selectedClipID, let index = timeline.index(ofClip: id) else { return nil }
-        let range = timeline.timeRange(ofClipAt: index)
+        guard let id = selectedClipID, let clip = timeline[clip: id], let range = timeline.timeRange(ofClip: id) else { return nil }
         let slack = KeyframeControls.tolerance
         guard currentTime >= range.lowerBound - slack, currentTime <= range.upperBound + slack else { return nil }
-        let clip = timeline.clips[index]
         return clip.sourceTime(atOffset: min(max(currentTime - range.lowerBound, 0), clip.duration))
     }
 
     /// Where a clip's source time falls on the timeline.
     func timelineTime(ofClip id: Clip.ID, atSource sourceTime: Double) -> Double? {
-        guard let index = timeline.index(ofClip: id) else { return nil }
-        let clip = timeline.clips[index]
-        return timeline.startTime(ofClipAt: index) + (sourceTime - clip.sourceStart) / clip.speed
+        guard let clip = timeline[clip: id], let range = timeline.timeRange(ofClip: id) else { return nil }
+        return range.lowerBound + (sourceTime - clip.sourceStart) / clip.speed
     }
 
     var selectedClip: Clip? {
-        guard let id = selectedClipID, let index = timeline.index(ofClip: id) else { return nil }
-        return timeline.clips[index]
+        guard let id = selectedClipID else { return nil }
+        return timeline[clip: id]
     }
 
     /// Selects the clip under the playhead unless a clip is already selected.
@@ -219,12 +216,21 @@ final class EditorSession {
 
     // MARK: - Toolbar actions
 
-    var canSplit: Bool { timeline.canSplit(at: currentTime) }
+    /// A selected overlay splits at the playhead; otherwise the main-track clip under it.
+    private var splitTarget: Clip.ID? {
+        selectedClipID.flatMap { timeline.isOverlay($0) ? $0 : nil }
+    }
 
-    /// Splits the clip under the playhead and selects the right-hand part.
+    var canSplit: Bool { timeline.canSplit(clip: splitTarget, at: currentTime) }
+
+    /// Splits at the playhead and selects the right-hand part.
     func splitAtPlayhead() async {
         var newID: Clip.ID?
-        await update { newID = $0.split(at: currentTime) }
+        let target = splitTarget
+        let time = currentTime
+        await update { timeline in
+            newID = target.map { timeline.split(clip: $0, at: time) } ?? timeline.split(at: time)
+        }
         if let newID { selectedClipID = newID }
     }
 
@@ -249,7 +255,7 @@ final class EditorSession {
             timeline.insert(clips, at: index)
             if var audio {
                 audio.timelineStart = playhead
-                timeline.audioItems.append(audio)
+                timeline.addAudio(audio)
             }
         }
         if !clips.isEmpty { await seek(to: timeline.startTime(ofClipAt: index)) }
@@ -277,7 +283,7 @@ final class EditorSession {
 
     /// Whether text or clip looks differ, which the live store can show without a rebuild.
     private static func drawsDifferently(_ a: Timeline, _ b: Timeline) -> Bool {
-        a.textItems != b.textItems || a.clips.map(\.look) != b.clips.map(\.look)
+        a.textItems != b.textItems || a.allClips.map(\.look) != b.allClips.map(\.look)
     }
 
     /// Pushes text and looks to the compositor and redraws the current frame.
