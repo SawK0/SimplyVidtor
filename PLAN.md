@@ -130,7 +130,7 @@ Chunk 5: history
 - [x] Export sheet: resolution, frame rate, HEVC, estimated size (settings remembered). `Exporter` renders through the same composition and compositor as the preview
 - [ ] Smart HDR: needs a 10-bit compositor pipeline (currently 8-bit BGRA)
 - [x] Exporting screen with progress and cancel
-- [ ] Save to Photos, Done screen with share sheet
+- [x] Save to Photos (add-only permission, Settings link if denied), Done screen with share sheet
 
 ### M6: Polish
 - [ ] Haptics on snap and selection

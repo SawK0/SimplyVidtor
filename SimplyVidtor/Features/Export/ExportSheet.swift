@@ -14,6 +14,13 @@ struct ExportSheet: View {
     }
 
     @State private var phase = Phase.settings
+    @State private var saveState = SaveState.idle
+    @Environment(\.openURL) private var openURL
+
+    private enum SaveState: Equatable {
+        case idle, saving, saved
+        case failed(String)
+    }
     @State private var exportTask: Task<Void, Never>?
     @AppStorage("export.resolution") private var resolution = ExportSettings.Resolution.p1080.rawValue
     @AppStorage("export.frameRate") private var frameRate = 30
@@ -159,15 +166,55 @@ struct ExportSheet: View {
             Text("Your video is ready.")
                 .font(Theme.Typography.headline)
                 .accessibilityIdentifier("export.done")
+            if case .failed(let message) = saveState {
+                VStack(spacing: Theme.Spacing.xs) {
+                    Text(message)
+                        .font(Theme.Typography.callout)
+                        .foregroundStyle(Theme.Palette.danger)
+                        .multilineTextAlignment(.center)
+                    Button("Open Settings") {
+                        if let settings = URL(string: UIApplication.openSettingsURLString) { openURL(settings) }
+                    }
+                    .font(Theme.Typography.callout.weight(.semibold))
+                    .foregroundStyle(Theme.Palette.accent)
+                }
+                .accessibilityIdentifier("export.saveError")
+            }
             Spacer(minLength: 0)
-            ShareLink(item: url) {
-                Label("Share", systemImage: "square.and.arrow.up")
+            Button {
+                save(url)
+            } label: {
+                switch saveState {
+                case .saving: ProgressView().tint(Theme.Palette.onAccent)
+                case .saved: Label("Saved to Photos", systemImage: "checkmark")
+                default: Label("Save to Photos", systemImage: "photo.badge.arrow.down")
+                }
             }
             .buttonStyle(.primary)
-            .accessibilityIdentifier("export.share")
-            Button("Done", action: close)
+            .disabled(saveState == .saving || saveState == .saved)
+            .accessibilityIdentifier("export.save")
+            HStack(spacing: Theme.Spacing.sm) {
+                ShareLink(item: url) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
                 .buttonStyle(.secondary)
-                .accessibilityIdentifier("export.finish")
+                .accessibilityIdentifier("export.share")
+                Button("Done", action: close)
+                    .buttonStyle(.secondary)
+                    .accessibilityIdentifier("export.finish")
+            }
+        }
+    }
+
+    private func save(_ url: URL) {
+        saveState = .saving
+        Task {
+            do {
+                try await PhotoSaver.saveVideo(at: url)
+                saveState = .saved
+            } catch {
+                saveState = .failed(error.localizedDescription)
+            }
         }
     }
 
@@ -196,6 +243,7 @@ struct ExportSheet: View {
                         if case .exporting = phase { phase = .exporting(progress: progress) }
                     }
                 }
+                saveState = .idle
                 phase = .done(url)
             } catch is CancellationError {
                 phase = .settings

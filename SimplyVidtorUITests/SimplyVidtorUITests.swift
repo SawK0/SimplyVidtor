@@ -52,6 +52,16 @@ final class SimplyVidtorUITests: XCTestCase {
         start.tap()
         XCTAssertTrue(app.staticTexts["export.done"].waitForExistence(timeout: 30))
         XCTAssertTrue(app.buttons["export.share"].exists)
+
+        let save = app.buttons["export.save"]
+        save.tap()
+        // The add-only photos prompt appears the first time.
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let allow = springboard.buttons["Allow"]
+        if allow.waitForExistence(timeout: 3) { allow.tap() }
+        expectation(for: NSPredicate(format: "label == 'Saved to Photos'"), evaluatedWith: save)
+        waitForExpectations(timeout: 10)
+
         app.buttons["export.finish"].tap()
         XCTAssertTrue(app.buttons["editor.export"].waitForExistence(timeout: 3))
     }
