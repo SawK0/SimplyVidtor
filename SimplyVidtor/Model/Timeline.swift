@@ -196,6 +196,11 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         textItems.removeAll { $0.id == id }
     }
 
+    mutating func setTransform(_ transform: ClipTransform, ofClip id: Clip.ID) {
+        guard let index = index(ofClip: id) else { return }
+        clips[index].transform = transform.clamped
+    }
+
     /// Turns the clip 90° clockwise, carrying its crop along.
     mutating func rotateClip(_ id: Clip.ID) {
         guard let index = index(ofClip: id) else { return }

@@ -256,9 +256,7 @@ final class SimplyVidtorUITests: XCTestCase {
     @MainActor
     func testCropPanelRotatesAndCrops() throws {
         createProject()
-        // Crop is past the right edge of the scrolling toolbar.
-        app.buttons["editor.tool.adjust"].swipeLeft()
-        app.buttons["editor.tool.crop"].tap()
+        tapTool("editor.tool.crop")
 
         let reset = app.buttons["editor.crop.reset"]
         XCTAssertTrue(reset.waitForExistence(timeout: 2))
@@ -319,8 +317,7 @@ final class SimplyVidtorUITests: XCTestCase {
     @MainActor
     func testAddEditAndDeleteText() throws {
         createProject()
-        app.buttons["editor.tool.adjust"].swipeLeft()
-        app.buttons["editor.tool.text"].tap()
+        tapTool("editor.tool.text")
 
         let field = app.textFields["editor.text.field"]
         XCTAssertTrue(field.waitForExistence(timeout: 2))
@@ -343,8 +340,7 @@ final class SimplyVidtorUITests: XCTestCase {
     @MainActor
     func testTextCanBeMovedOnPreviewAndTrimmedOnTimeline() throws {
         createProject()
-        app.buttons["editor.tool.adjust"].swipeLeft()
-        app.buttons["editor.tool.text"].tap()
+        tapTool("editor.tool.text")
         let field = app.textFields["editor.text.field"]
         XCTAssertTrue(field.waitForExistence(timeout: 2))
         field.typeText("Drag me\n")
@@ -375,8 +371,7 @@ final class SimplyVidtorUITests: XCTestCase {
     @MainActor
     func testAddSwapAndDeleteSticker() throws {
         createProject()
-        app.buttons["editor.tool.adjust"].swipeLeft()
-        app.buttons["editor.tool.sticker"].tap()
+        tapTool("editor.tool.sticker")
         let fire = app.buttons["editor.sticker.11"]
         XCTAssertTrue(fire.waitForExistence(timeout: 2))
         fire.tap()
@@ -400,8 +395,7 @@ final class SimplyVidtorUITests: XCTestCase {
     @MainActor
     func testEditAndDeleteAudioItem() throws {
         createProject()
-        app.buttons["editor.tool.adjust"].swipeLeft()
-        app.buttons["editor.tool.audio"].tap()
+        tapTool("editor.tool.audio")
         let row = app.buttons["audio.row.Sample Tone"]
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.tap()
@@ -431,8 +425,7 @@ final class SimplyVidtorUITests: XCTestCase {
     @MainActor
     func testLongAudioKeepsOtherTracksVisible() throws {
         createProject()
-        app.buttons["editor.tool.adjust"].swipeLeft()
-        app.buttons["editor.tool.audio"].tap()
+        tapTool("editor.tool.audio")
         let row = app.buttons["audio.row.Long Tone"]
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.tap()
@@ -470,6 +463,27 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testTransformPanelAndPreviewGestures() throws {
+        createProject()
+        tapTool("editor.tool.transform")
+        let reset = app.buttons["editor.transform.reset"]
+        XCTAssertTrue(reset.waitForExistence(timeout: 2))
+        XCTAssertFalse(reset.isEnabled)
+
+        app.descendants(matching: .any)["editor.transform.mode"].buttons["Fill"].tap()
+        XCTAssertTrue(reset.waitForEnabled(timeout: 2))
+        reset.tap()
+        expectation(for: NSPredicate(format: "isEnabled == false"), evaluatedWith: reset)
+        waitForExpectations(timeout: 3)
+
+        // Dragging on the preview moves the selected clip.
+        let preview = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+        preview.press(forDuration: 0.1, thenDragTo: preview.withOffset(CGVector(dx: 60, dy: 0)),
+                      withVelocity: .slow, thenHoldForDuration: 0.1)
+        XCTAssertTrue(reset.waitForEnabled(timeout: 3), "The clip moved")
+    }
+
+    @MainActor
     func testCancellingPickerStaysOnProjects() throws {
         app.buttons["projects.newProject"].tap()
 
@@ -485,9 +499,7 @@ final class SimplyVidtorUITests: XCTestCase {
     @MainActor
     func testEditorAudioToolOpensPickerOnAudioTab() throws {
         createProject()
-        // Audio is past the right edge of the scrolling toolbar.
-        app.buttons["editor.tool.adjust"].swipeLeft()
-        app.buttons["editor.tool.audio"].tap()
+        tapTool("editor.tool.audio")
         XCTAssertTrue(app.buttons["audio.importFiles"].waitForExistence(timeout: 3))
     }
 
@@ -552,6 +564,21 @@ final class SimplyVidtorUITests: XCTestCase {
         closeFormatSheet()
         // Wait until the editor has settled; presenting a cover mid-transition is dropped.
         XCTAssertTrue(app.descendants(matching: .any)["timeline.clip.0"].waitForExistence(timeout: 5))
+    }
+
+    /// Scrolls the editor toolbar in small steps until the tool is on screen, then taps it.
+    private func tapTool(_ identifier: String) {
+        let button = app.buttons[identifier]
+        XCTAssertTrue(button.waitForExistence(timeout: 3))
+        let width = app.frame.width
+        // Frame, not isHittable: hittability errors for off-screen elements.
+        for _ in 0..<8 where button.frame.minX < 0 || button.frame.maxX > width {
+            let y = button.frame.midY / app.frame.height
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: y))
+            let dx: CGFloat = button.frame.minX < 0 ? 120 : -120
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: dx, dy: 0)))
+        }
+        button.tap()
     }
 
     private func closeFormatSheet() {

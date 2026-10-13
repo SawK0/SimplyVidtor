@@ -248,7 +248,7 @@ struct TimelineTests {
         #expect(clip.preservesPitch)
         #expect(!clip.isMuted)
         #expect(clip.filter == nil && clip.adjustments.isIdentity)
-        #expect(clip.rotation == 0 && clip.crop == nil && clip.transition == nil)
+        #expect(clip.rotation == 0 && clip.crop == nil && clip.transition == nil && clip.transform.isIdentity)
         #expect(clip.speed == 2)
     }
 
@@ -461,5 +461,13 @@ struct TimelineTests {
         timeline.format = ProjectFormat(aspectRatio: .fourByThree, resolution: 2160, frameRate: 60)
         let decoded = try JSONDecoder().decode(Timeline.self, from: JSONEncoder().encode(timeline))
         #expect(decoded == timeline)
+    }
+
+    @Test func transformIsClamped() {
+        var timeline = sample()
+        let id = timeline.clips[0].id
+        timeline.setTransform(ClipTransform(scale: 50, x: 3, opacity: -1), ofClip: id)
+        let t = timeline.clips[0].transform
+        #expect(t.scale == ClipTransform.scaleRange.upperBound && t.x == 1.5 && t.opacity == 0)
     }
 }

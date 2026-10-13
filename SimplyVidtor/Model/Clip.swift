@@ -34,6 +34,7 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
     var crop: CropRect?
     /// Into the next clip; ignored on the last one.
     var transition: ClipTransition?
+    var transform: ClipTransform
 
     init(
         id: UUID = UUID(),
@@ -50,7 +51,8 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
         adjustments: ClipAdjustments = ClipAdjustments(),
         rotation: Int = 0,
         crop: CropRect? = nil,
-        transition: ClipTransition? = nil
+        transition: ClipTransition? = nil,
+        transform: ClipTransform = ClipTransform()
     ) {
         self.id = id
         self.mediaFile = mediaFile
@@ -67,6 +69,7 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
         self.rotation = rotation
         self.crop = crop
         self.transition = transition
+        self.transform = transform
     }
 
     static func video(mediaFile: String, duration: Double) -> Clip {
@@ -103,7 +106,8 @@ nonisolated extension Clip {
             adjustments: try c.decodeIfPresent(ClipAdjustments.self, forKey: .adjustments) ?? ClipAdjustments(),
             rotation: try c.decodeIfPresent(Int.self, forKey: .rotation) ?? 0,
             crop: try c.decodeIfPresent(CropRect.self, forKey: .crop),
-            transition: try c.decodeIfPresent(ClipTransition.self, forKey: .transition)
+            transition: try c.decodeIfPresent(ClipTransition.self, forKey: .transition),
+            transform: try c.decodeIfPresent(ClipTransform.self, forKey: .transform) ?? ClipTransform()
         )
     }
 }
@@ -114,10 +118,11 @@ nonisolated struct ClipLook: Hashable, Sendable {
     var adjustments = ClipAdjustments()
     var rotation = 0
     var crop: CropRect?
+    var transform = ClipTransform()
 }
 
 nonisolated extension Clip {
     var look: ClipLook {
-        ClipLook(filter: filter, adjustments: adjustments, rotation: rotation, crop: crop)
+        ClipLook(filter: filter, adjustments: adjustments, rotation: rotation, crop: crop, transform: transform)
     }
 }

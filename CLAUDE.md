@@ -63,7 +63,7 @@ SimplyVidtor/
 - Preview overlay gestures: combine transform and tap into one gesture (`exclusively(before:)`); separate tap and drag gestures on the same view let a drag also fire the tap.
 - The timeline lives in a `UIScrollView` (`TimelineScrollView`). Don't attach SwiftUI long-press gestures to its content (they block scrolling); add UIKit recognizers on the scroll view instead.
 - Testing per chunk: `make test-unit` plus only the new/affected UI test on one simulator (`-only-testing:` with `-parallel-testing-enabled NO`). Full `make test` at milestone ends. UI tests are not parallelized in the scheme.
-- UI tests: new projects open the format sheet; the `createProject` helper taps `format.done`. Zoom the timeline out (`pinch`) before dragging handles so they're on screen, and wait for `timeline.clip.0` before presenting anything from the editor.
+- UI tests: tap editor tools with `tapTool(_:)`, which scrolls the toolbar until the tool is on screen; never swipe a fixed distance. New projects open the format sheet; the `createProject` helper taps `format.done`. Zoom the timeline out (`pinch`) before dragging handles so they're on screen, and wait for `timeline.clip.0` before presenting anything from the editor.
 - Previews use `PreviewData.container()` for sample projects.
 - Tests use Swift Testing (`import Testing`, `@Test`, `#expect`) for unit tests; XCTest only for UI tests.
 - App is dark-only for v1: set `.preferredColorScheme(.dark)` at the root.

@@ -157,12 +157,12 @@ nonisolated class VideoCompositor: NSObject, AVVideoCompositing, @unchecked Send
         return filter.outputImage?.cropped(to: CGRect(origin: .zero, size: renderSize)) ?? to
     }
 
-    /// One layer, framed, filtered and fitted on black.
+    /// One layer, framed, filtered and placed on black.
     private func canvas(for layer: ClipInstruction.Layer, look: ClipLook, request: AVAsynchronousVideoCompositionRequest) -> CIImage {
         guard let image = source(for: layer.content, request: request) else { return black }
         let framed = FilterRenderer.framed(image, rotation: look.rotation, crop: look.crop)
         let looked = FilterRenderer.apply(look.adjustments, filter: look.filter, to: framed)
-        return fitted(looked).composited(over: black)
+        return placed(looked, look.transform).composited(over: black).cropped(to: CGRect(origin: .zero, size: renderSize))
     }
 
     private func source(for content: ClipInstruction.Content, request: AVAsynchronousVideoCompositionRequest) -> CIImage? {
@@ -179,17 +179,28 @@ nonisolated class VideoCompositor: NSObject, AVVideoCompositing, @unchecked Send
         }
     }
 
-    /// Aspect-fits `image` inside the render size, centred.
-    private func fitted(_ image: CIImage) -> CIImage {
+    /// Fits or fills `image` in the frame, then applies the clip's scale,
+    /// rotation, position and opacity.
+    private func placed(_ image: CIImage, _ transform: ClipTransform) -> CIImage {
         let extent = image.extent
         guard extent.width > 0, extent.height > 0 else { return image }
-        let scale = min(renderSize.width / extent.width, renderSize.height / extent.height)
-        let scaled = image
-            .transformed(by: CGAffineTransform(translationX: -extent.minX, y: -extent.minY))
+        let fit = min(renderSize.width / extent.width, renderSize.height / extent.height)
+        let fill = max(renderSize.width / extent.width, renderSize.height / extent.height)
+        let scale = (transform.mode == .fit ? fit : fill) * transform.scale
+        // Rotation is clockwise on screen; Core Image's y axis points up.
+        var placed = image
+            .transformed(by: CGAffineTransform(translationX: -extent.midX, y: -extent.midY))
             .transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-        let x = (renderSize.width - scaled.extent.width) / 2
-        let y = (renderSize.height - scaled.extent.height) / 2
-        return scaled.transformed(by: CGAffineTransform(translationX: x, y: y))
+            .transformed(by: CGAffineTransform(rotationAngle: -transform.rotation))
+            .transformed(by: CGAffineTransform(translationX: transform.x * renderSize.width,
+                                               y: (1 - transform.y) * renderSize.height))
+        if transform.opacity < 1 {
+            let fade = CIFilter.colorMatrix()
+            fade.inputImage = placed
+            fade.aVector = CIVector(x: 0, y: 0, z: 0, w: transform.opacity)
+            placed = fade.outputImage ?? placed
+        }
+        return placed
     }
 }
 

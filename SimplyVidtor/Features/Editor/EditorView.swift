@@ -89,7 +89,7 @@ struct EditorView: View {
 
     /// Panels that replace the toolbar while open.
     private enum Tool {
-        case speed, volume, filters, adjust, crop, transition, text, sticker, audio
+        case speed, volume, filters, adjust, crop, transform, transition, text, sticker, audio
 
         /// Panels that act on the selected clip.
         var isClipTool: Bool { ![.transition, .text, .sticker, .audio].contains(self) }
@@ -104,6 +104,7 @@ struct EditorView: View {
         case .filters: FiltersPanel(session: session, store: store, onDone: close)
         case .adjust: AdjustPanel(session: session, onDone: close)
         case .crop: CropPanel(session: session, store: store, onDone: close)
+        case .transform: TransformPanel(session: session, onDone: close)
         case .transition: TransitionPanel(session: session) { session.selectTransition(after: nil) }
         case .text:
             if let id = session.selectedTextID {
@@ -284,6 +285,9 @@ struct EditorView: View {
                 ToolButton(title: "Crop", systemImage: "crop") { open(.crop) }
                     .disabled(session?.timeline.clips.isEmpty ?? true)
                     .accessibilityIdentifier("editor.tool.crop")
+                ToolButton(title: "Transform", systemImage: "arrow.up.and.down.and.arrow.left.and.right") { open(.transform) }
+                    .disabled(session?.timeline.clips.isEmpty ?? true)
+                    .accessibilityIdentifier("editor.tool.transform")
                 ToolButton(title: "Duplicate", systemImage: "plus.square.on.square") {
                     Task { await session?.duplicateSelected() }
                 }

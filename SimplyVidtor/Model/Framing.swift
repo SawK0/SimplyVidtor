@@ -105,3 +105,32 @@ nonisolated struct CropRect: Codable, Hashable, Sendable {
         return CropRect(x: growsLeft ? anchorX - w : anchorX, y: growsUp ? anchorY - h : anchorY, width: w, height: h)
     }
 }
+
+/// Where a clip sits in the frame. It starts fitted (or filling) and centred;
+/// `scale` multiplies that size. Position is the clip's centre, normalized
+/// from the frame's top left.
+nonisolated struct ClipTransform: Codable, Hashable, Sendable {
+    enum Mode: String, Codable, CaseIterable, Sendable { case fit, fill }
+
+    static let scaleRange: ClosedRange<Double> = 0.1...5
+
+    var mode = Mode.fit
+    var scale: Double = 1
+    var x: Double = 0.5
+    var y: Double = 0.5
+    /// Clockwise, in radians.
+    var rotation: Double = 0
+    var opacity: Double = 1
+
+    var isIdentity: Bool { self == ClipTransform() }
+
+    /// Values kept in range; position may go past the frame by half its size.
+    var clamped: ClipTransform {
+        var t = self
+        t.scale = min(max(scale, Self.scaleRange.lowerBound), Self.scaleRange.upperBound)
+        t.x = min(max(x, -0.5), 1.5)
+        t.y = min(max(y, -0.5), 1.5)
+        t.opacity = min(max(opacity, 0), 1)
+        return t
+    }
+}

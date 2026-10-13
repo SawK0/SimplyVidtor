@@ -134,6 +134,33 @@ struct VideoCompositorTests {
         #expect(abs(color.r - color.b) < 10, "Expected the live mono look, got \(color)")
     }
 
+    /// Photos-only frames are 1080×1920; the 300×200 yellow photo fits as a centred band.
+    private func photoFrame(_ transform: ClipTransform) async throws -> CGImage {
+        var clip = try photoClip()
+        clip.transform = transform
+        return try await frame(of: try await CompositionBuilder.build(Timeline(clips: [clip]), store: store), at: 1)
+    }
+
+    @Test func fillCoversTheFrameAndFitLeavesBars() async throws {
+        let fit = TestMedia.color(of: try await photoFrame(ClipTransform()), x: 0.5, y: 0.05)
+        let fill = TestMedia.color(of: try await photoFrame(ClipTransform(mode: .fill)), x: 0.5, y: 0.05)
+        #expect(fit.r < 30, "Black bar above the fitted photo, got \(fit)")
+        #expect(fill.r > 230, "Filled photo reaches the top, got \(fill)")
+    }
+
+    @Test func positionMovesTheClip() async throws {
+        let moved = try await photoFrame(ClipTransform(y: 0.1))
+        #expect(TestMedia.centerColor(of: moved).r < 30, "Centre is empty after moving up")
+        #expect(TestMedia.color(of: moved, x: 0.5, y: 0.1).r > 230)
+    }
+
+    @Test func scaleAndOpacityApply() async throws {
+        let small = try await photoFrame(ClipTransform(scale: 0.2))
+        #expect(TestMedia.color(of: small, x: 0.3, y: 0.5).r < 30, "Shrunk photo leaves the sides black")
+        let faded = TestMedia.centerColor(of: try await photoFrame(ClipTransform(opacity: 0.5)))
+        #expect((150...215).contains(faded.r), "Half-transparent over black, got \(faded)")
+    }
+
     @Test func videoFrameIsNotBlack() async throws {
         let output = try await CompositionBuilder.build(Timeline(clips: [try videoClip()]), store: store)
         let color = TestMedia.centerColor(of: try await frame(of: output, at: 1))

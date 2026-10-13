@@ -1,12 +1,14 @@
 import SwiftUI
 
-/// Sits over the preview. Taps select visible text (or toggle playback); the
-/// selected text gets a frame and follows drag, pinch and rotate gestures.
+/// Sits over the preview. Taps select visible text (or toggle playback). Drag,
+/// pinch and rotate move the selected text, or else the selected clip.
 struct TextOverlayLayer: View {
     let session: EditorSession
 
-    /// The item as it was when the current gesture began.
+    /// The text as it was when the current gesture began.
     @State private var gestureStart: TextItem?
+    /// The clip's transform when the current gesture began.
+    @State private var clipGestureStart: ClipTransform?
 
     var body: some View {
         GeometryReader { geo in
@@ -86,7 +88,10 @@ struct TextOverlayLayer: View {
             .simultaneously(with: MagnifyGesture())
             .simultaneously(with: RotateGesture())
             .onChanged { value in
-                guard let current = session.selectedText else { return }
+                guard let current = session.selectedText else {
+                    transformClip(value, in: video)
+                    return
+                }
                 let start = gestureStart ?? current
                 gestureStart = start
                 var item = start
@@ -103,8 +108,39 @@ struct TextOverlayLayer: View {
                 session.editText(item, byDrag: true)
             }
             .onEnded { _ in
-                gestureStart = nil
-                session.endDrag()
+                if clipGestureStart != nil {
+                    clipGestureStart = nil
+                    Task { await session.endInteractiveEdit() }
+                } else {
+                    gestureStart = nil
+                    session.endDrag()
+                }
             }
+    }
+
+    /// Moves, scales and rotates the selected clip while it's under the playhead.
+    private func transformClip(
+        _ value: SimultaneousGesture<SimultaneousGesture<DragGesture, MagnifyGesture>, RotateGesture>.Value,
+        in video: CGRect
+    ) {
+        guard let clip = session.selectedClip,
+              let index = session.timeline.index(ofClip: clip.id),
+              session.timeline.timeRange(ofClipAt: index).contains(session.currentTime) || session.timeline.clips.count == 1
+        else { return }
+        let start = clipGestureStart ?? clip.transform
+        clipGestureStart = start
+        var transform = start
+        if let drag = value.first?.first, video.width > 0, video.height > 0 {
+            transform.x = start.x + drag.translation.width / video.width
+            transform.y = start.y + drag.translation.height / video.height
+        }
+        if let magnify = value.first?.second {
+            transform.scale = start.scale * magnify.magnification
+        }
+        if let rotate = value.second {
+            transform.rotation = start.rotation + rotate.rotation.radians
+        }
+        session.beginInteractiveEdit()
+        session.updateInteractiveEdit { $0.setTransform(transform, ofClip: clip.id) }
     }
 }
