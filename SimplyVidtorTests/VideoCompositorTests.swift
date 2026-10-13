@@ -173,7 +173,7 @@ struct VideoCompositorTests {
             #expect(a.end == b.start)
         }
         #expect(ranges.last?.end == output.composition.duration)
-        #expect(output.composition.duration.seconds > timeline.duration, "Audio runs past the clips")
+        #expect(abs(output.composition.duration.seconds - timeline.duration) < 0.02, "Audio is cut at the video's end")
     }
 
     @Test(arguments: [

@@ -132,11 +132,28 @@ Chunk 5: history
 - [x] Exporting screen with progress and cancel
 - [x] Save to Photos (add-only permission, Settings link if denied), Done screen with share sheet
 
-### M6: Polish
+### M6: Canvas & framing
+- [ ] Live look preview: adjust, filters, crop / rotate update while dragging (looks read per frame like text overlays); volume live too. Speed still applies on release
+- [ ] Project format: frame shape (9:16, 16:9, 1:1, 4:5, 4:3), base resolution and frame rate. Chosen after picking media (preset "Match first clip"), changeable from the editor. The preview shows the exact output frame; export defaults to it
+- [ ] Clip transform: position, scale, rotation, opacity, Fit / Fill. Pinch / drag / rotate on the preview and a Transform panel. Static values first; animation comes in M7
+- [ ] Tap the ruler to jump the playhead (the playhead stays centred, like other mobile editors)
+
+### M7: Motion
+- [ ] Animation format: versioned keyframe data over 0...1 progress (opacity, offset, scale, rotation) with cubic-bezier easing. Built-in presets use the same format
+- [ ] In / Out / Loop animations for text and stickers: Fade, Slide, Pop, Bounce, Spin, Wipe; duration, easing, direction and strength
+- [ ] Animation packs: manifest (id, version, author, thumbnails) plus animations, imported from Files and validated. Projects embed the animations they use, so they render even if a pack is removed
+- [ ] Per-character text effects (typewriter) in the same format
+- [ ] Store-ready pack ownership (StoreKit later)
+
+### M8: Polish
 - [ ] Haptics on snap and selection
 - [ ] VoiceOver labels for every tool and timeline item
 - [ ] Performance pass: thumbnail cache, composition rebuild cost, memory on long projects
 - [ ] iPad pass: regular-width editor layout, Stage Manager / Split View window sizes, pointer and keyboard shortcuts (space = play/pause, ⌘Z / ⇧⌘Z)
+- [ ] Projects screen visuals from Figma
+- [ ] Hide the timeline while typing text so the preview isn't squeezed
+- [ ] Timeline drags: check the start of fast drags isn't swallowed by the scroll view
+- [ ] Filters and crop in timeline thumbnails and project covers
 
 ## Testing
 

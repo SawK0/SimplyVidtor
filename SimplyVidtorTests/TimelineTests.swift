@@ -440,4 +440,13 @@ struct TimelineTests {
         let shorter = timeline.audioItems[0].trimmingEnd(by: -2)
         #expect(shorter.fadeIn == 1 && shorter.fadeOut == 1)
     }
+
+    @Test func audioCutAtVideoEndKeepsAFadeOut() throws {
+        var item = audio()   // plays 1 s to 5 s
+        item.fadeOut = 1
+        let cut = try #require(item.cut(at: 3))
+        #expect(cut.timelineEnd == 3 && cut.sourceStart == 2 && cut.fadeOut == 1)
+        #expect(item.cut(at: 9) == item)
+        #expect(item.cut(at: 1) == nil)
+    }
 }

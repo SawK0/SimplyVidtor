@@ -45,12 +45,13 @@ SimplyVidtor/
 
 - SwiftUI + `@Observable`; no Combine or `ObservableObject` in new code.
 - `Timeline` and its parts are value types. The editor mutates a copy and pushes snapshots for undo/redo.
+- Audio and text past the video's end are kept in the timeline but not played (`AudioItem.cut(at:)`); the project length is always the video's length.
 - Store derived values nowhere: clip timeline duration = `sourceDuration / speed`. Clips joined by a transition overlap (`Timeline.overlap(afterClipAt:)`), so always get clip positions from `Timeline.startTime(ofClipAt:)`, never by summing durations.
 - `Project` stores `Timeline` as JSON. Once v1 ships, new timeline fields must be optional (or use `decodeIfPresent`): synthesized `Codable` fails on missing keys, which would make old projects unreadable.
 - Normalized (0...1) coordinates for overlay positions and crop rects.
 - Every screen gets a `#Preview` with sample data.
 - Use `Theme` tokens (`Theme.Palette`, `Typography`, `Spacing`, `Radius`, `Size`), never raw hex or magic numbers in views. Reuse `DesignSystem/` components before writing new chrome; add new ones to `ComponentGallery`.
-- Debug launch arguments (also in the shared scheme, off by default): `-componentGallery` opens the component gallery; `-inMemoryStore` uses a throwaway SwiftData store and media folder (UI tests always pass it); `-stubMediaPicker` makes the picker's Add return a placeholder clip without a selection; `-seedSampleAudio` adds a 2 s "Sample Tone" to an empty audio library.
+- Debug launch arguments (also in the shared scheme, off by default): `-componentGallery` opens the component gallery; `-inMemoryStore` uses a throwaway SwiftData store and media folder (UI tests always pass it); `-stubMediaPicker` makes the picker's Add return a placeholder clip without a selection; `-seedSampleAudio` adds a 2 s "Sample Tone" and a 60 s "Long Tone" to an empty audio library.
 - SwiftData models are listed once in `AppSchema.models`; build every container (app, previews, tests) with `AppSchema.container(inMemory:)`.
 - Media files live in `MediaStore` (Application Support/Media) and are referenced by file name. Read the store from `@Environment(\.mediaStore)`.
 - Present `MediaPickerView` with `.fullScreenCover`, never `.sheet` (the inline photo picker breaks sheet safe areas).

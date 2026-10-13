@@ -109,7 +109,9 @@ nonisolated enum CompositionBuilder {
 
         var mixParameters = tracks.mixParameters
         for item in timeline.audioItems {
-            guard let source = try await loadTracks(of: store.url(for: item.mediaFile)),
+            // Audio stops at the video's end; the item keeps its full length for later.
+            guard let item = item.cut(at: timeline.duration),
+                  let source = try await loadTracks(of: store.url(for: item.mediaFile)),
                   let audio = source.audio,
                   let track = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
             else { continue }

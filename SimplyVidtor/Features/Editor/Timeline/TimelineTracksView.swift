@@ -32,7 +32,9 @@ struct TimelineTracksView: View {
                 .frame(height: Theme.Size.audioTrackHeight)
         }
         .padding(.horizontal, inset)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // minWidth: 0 keeps a long item (e.g. a song) from widening the content,
+        // which the hosting view would centre, pushing the other rows off screen.
+        .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background {
             Color.clear
                 .contentShape(.rect)
@@ -224,7 +226,12 @@ struct TimelineTracksView: View {
             Color.clear
             ForEach(Array(timeline.audioItems.enumerated()), id: \.element.id) { index, item in
                 let isSelected = session.selectedAudioID == item.id
-                AudioWaveformView(item: item, width: metrics.width(of: item.sourceDuration), store: store)
+                AudioWaveformView(
+                    item: item,
+                    width: metrics.width(of: item.sourceDuration),
+                    playedWidth: metrics.width(of: max(min(item.sourceDuration, timeline.duration - item.timelineStart), 0)),
+                    store: store
+                )
                     .overlay {
                         if isSelected {
                             SelectionFrame(
@@ -402,7 +409,7 @@ struct EditorTimelineView: View {
         GeometryReader { geo in
             let inset = geo.size.width / 2
             TimelineScrollView(
-                contentWidth: metrics.width(of: session.duration) + geo.size.width,
+                contentWidth: metrics.width(of: contentDuration) + geo.size.width,
                 offset: metrics.offset(for: session.currentTime),
                 isScrollEnabled: !session.isDragging,
                 onScrub: { session.scrub(to: metrics.time(forOffset: $0)) },
@@ -425,6 +432,13 @@ struct EditorTimelineView: View {
         .sensoryFeedback(.selection, trigger: session.selectedClipID)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("editor.timeline")
+    }
+
+    /// The video plus any audio or text running past its end, so they can be reached.
+    private var contentDuration: Double {
+        let timeline = session.timeline
+        let overlayEnds = timeline.audioItems.map(\.timelineEnd) + timeline.textItems.map(\.timelineEnd)
+        return max(timeline.duration, overlayEnds.max() ?? 0)
     }
 
     /// Long-press a clip, then drag: other clips reflow as the finger passes their midpoints.
@@ -477,6 +491,8 @@ struct EditorTimelineView: View {
 private struct AudioWaveformView: View {
     let item: AudioItem
     let width: CGFloat
+    /// Audio past the video's end isn't played; it's drawn dimmed.
+    let playedWidth: CGFloat
     let store: MediaStore
 
     @State private var peaks: [Float] = []
@@ -509,6 +525,11 @@ private struct AudioWaveformView: View {
                 fades.addLine(to: CGPoint(x: size.width, y: size.height))
             }
             context.fill(fades, with: .color(Theme.Palette.scrim))
+
+            if playedWidth < size.width {
+                let cut = CGRect(x: playedWidth, y: 0, width: size.width - playedWidth, height: size.height)
+                context.fill(Path(cut), with: .color(Theme.Palette.scrim))
+            }
         }
         .overlay(alignment: .leading) {
             Image(systemName: "music.note")

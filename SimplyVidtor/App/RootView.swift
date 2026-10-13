@@ -58,15 +58,18 @@ struct RootView: View {
     }
 
     #if DEBUG
-    /// `-seedSampleAudio` adds a 2 s "Sample Tone" to an empty audio library, for UI tests.
+    /// `-seedSampleAudio` adds a 2 s "Sample Tone" and a 60 s "Long Tone" to an
+    /// empty audio library, for UI tests.
     private func seedSampleAudioIfRequested() async {
         guard ProcessInfo.processInfo.arguments.contains("-seedSampleAudio"),
               (try? context.fetchCount(FetchDescriptor<AudioAsset>())) == 0
         else { return }
-        let url = URL.temporaryDirectory.appending(path: "Sample Tone.wav")
-        try? FileManager.default.removeItem(at: url)
-        guard (try? ToneGenerator.writeTone(to: url)) != nil else { return }
-        _ = try? await AudioLibrary(context: context, store: store).importFile(at: url)
+        for (name, seconds) in [("Sample Tone", 2.0), ("Long Tone", 60.0)] {
+            let url = URL.temporaryDirectory.appending(path: "\(name).wav")
+            try? FileManager.default.removeItem(at: url)
+            guard (try? ToneGenerator.writeTone(to: url, seconds: seconds)) != nil else { continue }
+            _ = try? await AudioLibrary(context: context, store: store).importFile(at: url)
+        }
     }
     #endif
 }

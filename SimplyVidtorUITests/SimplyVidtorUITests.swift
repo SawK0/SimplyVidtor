@@ -429,6 +429,26 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testLongAudioKeepsOtherTracksVisible() throws {
+        createProject()
+        app.buttons["editor.tool.adjust"].swipeLeft()
+        app.buttons["editor.tool.audio"].tap()
+        let row = app.buttons["audio.row.Long Tone"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        app.buttons["mediaPicker.add"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["timeline.audio.0"].waitForExistence(timeout: 3))
+
+        // The clip starts at the playhead, in the middle of the timeline.
+        let timeline = app.descendants(matching: .any)["editor.timeline"].frame
+        let clip = app.descendants(matching: .any)["timeline.clip.0"].frame
+        XCTAssertEqual(clip.minX, timeline.midX, accuracy: 4, "Clip row was pushed off screen")
+        // Audio past the video's end is cut: the project doesn't grow to the song's 60 s.
+        let timecode = app.staticTexts["editor.timecode"].label
+        XCTAssertFalse(timecode.contains("/ 01:"), "Got \(timecode)")
+    }
+
+    @MainActor
     func testCancellingPickerStaysOnProjects() throws {
         app.buttons["projects.newProject"].tap()
 
