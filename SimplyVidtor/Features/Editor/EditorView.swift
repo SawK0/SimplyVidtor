@@ -251,8 +251,9 @@ struct EditorView: View {
                 Color.clear
             }
         }
-        .frame(height: Theme.Size.rulerHeight + Theme.Size.timelineClipHeight + Theme.Size.textTrackHeight
-            + Theme.Size.audioTrackHeight + 3 * Theme.Spacing.xs)
+        // Grows with the tracks, up to a limit; past it the timeline scrolls vertically.
+        .frame(height: TimelineLayout.visibleHeight(for: session?.timeline ?? Timeline()))
+        .animation(.snappy(duration: 0.25), value: session?.timeline.tracks.count)
         .padding(.vertical, Theme.Spacing.sm)
     }
 

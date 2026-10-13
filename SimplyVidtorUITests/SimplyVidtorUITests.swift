@@ -339,6 +339,23 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testOverlappingTextGetsItsOwnTrack() throws {
+        createProject()
+        for text in ["One", "Two"] {
+            tapTool("editor.tool.text")
+            let field = app.textFields["editor.text.field"]
+            XCTAssertTrue(field.waitForExistence(timeout: 2))
+            field.typeText("\(text)\n")
+            app.buttons["editor.panel.done"].tap()
+        }
+        let second = app.descendants(matching: .any)["timeline.track.text.1"]
+        XCTAssertTrue(second.waitForExistence(timeout: 3), "Both start at the playhead, so the second gets a new track")
+        let one = app.descendants(matching: .any)["timeline.text.0"].frame
+        let two = app.descendants(matching: .any)["timeline.text.1"].frame
+        XCTAssertGreaterThan(two.minY, one.maxY - 1, "Drawn on the row below")
+    }
+
+    @MainActor
     func testTextCanBeMovedOnPreviewAndTrimmedOnTimeline() throws {
         createProject()
         tapTool("editor.tool.text")

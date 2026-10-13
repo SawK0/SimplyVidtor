@@ -156,7 +156,8 @@ Chunk 5: history
 - [ ] Main track magnet: on (default) keeps clips back to back; off lets clips sit anywhere with gaps. Turning it back on closes gaps
 - [x] Overlay clips (picture in picture) render with their own transform, looks and keyframes, stacked with text in track order; main-track gaps render black
 - [ ] Overlay clips in the editor: add from the picker, free placement in time on their track
-- [ ] Add track button, move items between tracks, timeline rows per track
+- [x] Timeline rows per track (rows below the main track in drawing order, then audio); the timeline grows with tracks and scrolls vertically past two extra rows. Drag text, audio and overlays sideways in time and up or down to another track of the same kind
+- [ ] Add track button, track actions
 - [ ] Warn when more videos overlap than the device can decode at once
 
 ### M10: Polish

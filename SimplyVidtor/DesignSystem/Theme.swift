@@ -71,6 +71,7 @@ enum Theme {
         static let timelineClipHeight: CGFloat = 56
         static let audioTrackHeight: CGFloat = 28
         static let textTrackHeight: CGFloat = 28
+        static let overlayTrackHeight: CGFloat = 40
         static let rulerHeight: CGFloat = 28
         static let clipGap: CGFloat = 2
         static let trimHandleWidth: CGFloat = 16

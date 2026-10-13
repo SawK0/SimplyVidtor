@@ -1,4 +1,5 @@
 import CoreGraphics
+import SwiftUI
 
 /// Maps between timeline seconds and points. The playhead is fixed at the
 /// centre, so the scroll offset in points equals `time * pointsPerSecond`.
@@ -31,5 +32,28 @@ nonisolated struct TimelineMetrics: Equatable {
     func zoomed(by scale: CGFloat) -> TimelineMetrics {
         let pps = min(max(pointsPerSecond * scale, Self.zoomRange.lowerBound), Self.zoomRange.upperBound)
         return TimelineMetrics(pointsPerSecond: pps)
+    }
+}
+
+/// Row heights for the timeline's tracks.
+enum TimelineLayout {
+    static func height(of kind: TrackKind) -> CGFloat {
+        switch kind {
+        case .video: Theme.Size.overlayTrackHeight
+        case .text: Theme.Size.textTrackHeight
+        case .audio: Theme.Size.audioTrackHeight
+        }
+    }
+
+    /// Ruler, main track and every other track, with the gaps between them.
+    static func contentHeight(for timeline: Timeline) -> CGFloat {
+        let rows = timeline.tracks.map { height(of: $0.kind) }
+        return Theme.Size.rulerHeight + Theme.Size.timelineClipHeight + rows.reduce(0, +)
+            + CGFloat(rows.count + 1) * Theme.Spacing.xs
+    }
+
+    /// The editor shows the default rows plus up to two more; past that the timeline scrolls.
+    static func visibleHeight(for timeline: Timeline) -> CGFloat {
+        min(contentHeight(for: timeline), contentHeight(for: Timeline()) + 2 * Theme.Size.overlayTrackHeight)
     }
 }

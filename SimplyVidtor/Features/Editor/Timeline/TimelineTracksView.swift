@@ -32,10 +32,11 @@ struct TimelineTracksView: View {
                 .accessibilityIdentifier("timeline.ruler")
             clipTrack
                 .frame(height: Theme.Size.timelineClipHeight)
-            textTrack
-                .frame(height: Theme.Size.textTrackHeight)
-            audioTrack
-                .frame(height: Theme.Size.audioTrackHeight)
+            // Each row draws over the rows above it.
+            ForEach(timeline.tracks.filter { $0.kind != .audio } + timeline.audioTracks) { track in
+                row(for: track)
+                    .frame(height: TimelineLayout.height(of: track.kind))
+            }
         }
         .padding(.horizontal, inset)
         // minWidth: 0 keeps a long item (e.g. a song) from widening the content,
@@ -190,10 +191,109 @@ struct TimelineTracksView: View {
         return label
     }
 
-    private var textTrack: some View {
+    @ViewBuilder
+    private func row(for track: Track) -> some View {
+        let sameKind = timeline.tracks.filter { $0.kind == track.kind }
+        let position = sameKind.firstIndex(of: track) ?? 0
+        Group {
+            switch track.kind {
+            case .video: overlayTrack(track)
+            case .text: textTrack(track)
+            case .audio: audioTrack(track)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("timeline.track.\(track.kind.rawValue).\(position)")
+    }
+
+    /// The same-kind track `rows` rows away from `trackID` (by a vertical drag of `dy` points).
+    private func track(_ trackID: Track.ID, movedBy dy: CGFloat) -> Track.ID {
+        guard let kind = timeline.track(trackID)?.kind else { return trackID }
+        let sameKind = timeline.tracks.filter { $0.kind == kind }
+        guard let index = sameKind.firstIndex(where: { $0.id == trackID }) else { return trackID }
+        let pitch = TimelineLayout.height(of: kind) + Theme.Spacing.xs
+        let target = min(max(index + Int((dy / pitch).rounded()), 0), sameKind.count - 1)
+        return sameKind[target].id
+    }
+
+    // MARK: - Overlay clips
+
+    private func overlayTrack(_ track: Track) -> some View {
         ZStack(alignment: .leading) {
             Color.clear
-            ForEach(Array(timeline.textItems.enumerated()), id: \.element.id) { index, item in
+            ForEach(Array(timeline.overlays.enumerated()).filter { $0.element.trackID == track.id }, id: \.element.id) { index, overlay in
+                overlayView(overlay, at: index)
+            }
+        }
+    }
+
+    private func overlayView(_ overlay: OverlayClip, at index: Int) -> some View {
+        let clip = overlay.clip
+        let isSelected = session.selectedClipID == clip.id
+        return FilmstripView(clip: clip, width: metrics.width(of: clip.duration), store: store)
+            .overlay {
+                if isSelected {
+                    SelectionFrame(
+                        onLeadingDrag: { trimOverlay(clip.id, leading: true, by: $0) },
+                        onTrailingDrag: { trimOverlay(clip.id, leading: false, by: $0) },
+                        onEnded: { Task { await session.endInteractiveEdit() } }
+                    )
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if !clip.transformKeyframes.isEmpty {
+                    KeyframeMarks(offsets: clip.transformKeyframes.times
+                        .filter { $0 >= clip.sourceStart - 0.001 && $0 <= clip.sourceEnd + 0.001 }
+                        .map { metrics.width(of: ($0 - clip.sourceStart) / clip.speed) })
+                        .frame(height: Theme.Size.keyframeMark * 2)
+                }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 4)
+                    .onChanged { drag in moveOverlay(clip.id, by: drag.translation) }
+                    .onEnded { _ in Task { await session.endInteractiveEdit() } },
+                including: isSelected ? .all : .subviews
+            )
+            .offset(x: metrics.offset(for: overlay.timelineStart))
+            .onTapGesture { session.select(clip.id) }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Overlay \(index + 1)")
+            .accessibilityValue(accessibilityValue(for: clip))
+            .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+            .accessibilityAction { session.select(clip.id) }
+            .accessibilityIdentifier("timeline.overlay.\(index)")
+    }
+
+    /// Re-applied to the drag's starting timeline, so it reads the overlay's start from there.
+    private func moveOverlay(_ id: Clip.ID, by translation: CGSize) {
+        let delta = Double(translation.width / metrics.pointsPerSecond)
+        session.beginInteractiveEdit()
+        session.updateInteractiveEdit { timeline in
+            guard let index = timeline.overlayIndex(of: id) else { return }
+            let overlay = timeline.overlays[index]
+            timeline.moveOverlay(id, toStart: overlay.timelineStart + delta, track: track(overlay.trackID, movedBy: translation.height))
+        }
+    }
+
+    private func trimOverlay(_ id: Clip.ID, leading: Bool, by translation: CGFloat) {
+        let delta = Double(translation / metrics.pointsPerSecond)
+        session.beginInteractiveEdit()
+        session.updateInteractiveEdit { timeline in
+            guard let clip = timeline[clip: id] else { return }
+            if leading {
+                timeline.trimStart(ofClip: id, toSource: clip.sourceStart + delta * clip.speed)
+            } else {
+                timeline.trimEnd(ofClip: id, toSource: clip.sourceEnd + delta * clip.speed)
+            }
+        }
+    }
+
+    // MARK: - Text
+
+    private func textTrack(_ track: Track) -> some View {
+        ZStack(alignment: .leading) {
+            Color.clear
+            ForEach(Array(timeline.textItems.enumerated()).filter { $0.element.trackID == track.id }, id: \.element.id) { index, item in
                 let isSelected = session.selectedTextID == item.id
                 HStack(spacing: Theme.Spacing.xxs) {
                     Label(item.text, systemImage: item.isSticker ? "face.smiling" : "textformat")
@@ -229,7 +329,13 @@ struct TimelineTracksView: View {
                     .gesture(
                         DragGesture(minimumDistance: 4)
                             .onChanged { drag in
-                                dragText(item, by: drag.translation.width) { $0.moved(toStart: $0.timelineStart + $1) }
+                                let dy = drag.translation.height
+                                // `start` is the item as the drag began.
+                                dragText(item, by: drag.translation.width) { start, delta in
+                                    var moved = start.moved(toStart: start.timelineStart + delta)
+                                    moved.trackID = self.track(start.trackID, movedBy: dy)
+                                    return moved
+                                }
                             }
                             .onEnded { _ in endTextDrag() },
                         including: isSelected ? .all : .subviews
@@ -258,10 +364,10 @@ struct TimelineTracksView: View {
         session.endDrag()
     }
 
-    private var audioTrack: some View {
+    private func audioTrack(_ track: Track) -> some View {
         ZStack(alignment: .leading) {
             Color.clear
-            ForEach(Array(timeline.audioItems.enumerated()), id: \.element.id) { index, item in
+            ForEach(Array(timeline.audioItems.enumerated()).filter { $0.element.trackID == track.id }, id: \.element.id) { index, item in
                 let isSelected = session.selectedAudioID == item.id
                 AudioWaveformView(
                     item: item,
@@ -280,7 +386,12 @@ struct TimelineTracksView: View {
                     .gesture(
                         DragGesture(minimumDistance: 4)
                             .onChanged { drag in
-                                dragAudio(item, by: drag.translation.width) { $0.moved(toStart: $0.timelineStart + $1) }
+                                let dy = drag.translation.height
+                                dragAudio(item, by: drag.translation.width) { start, delta in
+                                    var moved = start.moved(toStart: start.timelineStart + delta)
+                                    moved.trackID = self.track(start.trackID, movedBy: dy)
+                                    return moved
+                                }
                             }
                             .onEnded { _ in endAudioDrag() },
                         including: isSelected ? .all : .subviews
@@ -446,11 +557,12 @@ struct EditorTimelineView: View {
             let inset = geo.size.width / 2
             TimelineScrollView(
                 contentWidth: metrics.width(of: contentDuration) + geo.size.width,
+                contentHeight: TimelineLayout.contentHeight(for: session.timeline),
                 offset: metrics.offset(for: session.currentTime),
                 isScrollEnabled: !session.isDragging,
                 onScrub: { session.scrub(to: metrics.time(forOffset: $0)) },
                 onInteractionChanged: { if $0 { session.pause() } },
-                onLongPress: { state, x in reorder(state, trackX: x - inset) }
+                onLongPress: { state, point in reorder(state, trackX: point.x - inset, y: point.y) }
             ) {
                 TimelineTracksView(session: session, metrics: metrics, inset: inset, store: store, reordering: reordering)
             }
@@ -473,11 +585,13 @@ struct EditorTimelineView: View {
     private var contentDuration: Double { session.timeline.duration }
 
     /// Long-press a clip, then drag: other clips reflow as the finger passes their midpoints.
-    private func reorder(_ state: UIGestureRecognizer.State, trackX: CGFloat) {
+    private func reorder(_ state: UIGestureRecognizer.State, trackX: CGFloat, y: CGFloat) {
         let time = metrics.time(forOffset: trackX)
+        // Only the main track's row reorders.
+        let mainRow = (Theme.Size.rulerHeight + Theme.Spacing.xs)...(Theme.Size.rulerHeight + Theme.Spacing.xs + Theme.Size.timelineClipHeight)
         switch state {
         case .began:
-            guard !session.isEditingInteractively,
+            guard !session.isEditingInteractively, mainRow.contains(y),
                   let index = session.timeline.clipIndex(at: time)
             else { return }
             session.beginInteractiveEdit()
