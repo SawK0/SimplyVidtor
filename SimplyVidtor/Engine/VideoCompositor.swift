@@ -16,11 +16,22 @@ nonisolated final class ClipInstruction: NSObject, AVVideoCompositionInstruction
         let content: Content
         let clipID: Clip.ID?
         let look: ClipLook
+        /// Maps composition time to the clip's source time, for keyframes.
+        let start: Double
+        let sourceStart: Double
+        let speed: Double
 
-        init(content: Content, clip: Clip? = nil) {
+        init(content: Content, clip: Clip? = nil, start: Double = 0) {
             self.content = content
             clipID = clip?.id
             look = clip?.look ?? ClipLook()
+            self.start = start
+            sourceStart = clip?.sourceStart ?? 0
+            speed = clip?.speed ?? 1
+        }
+
+        func sourceTime(at time: Double) -> Double {
+            sourceStart + (time - start) * speed
         }
     }
 
@@ -197,7 +208,8 @@ nonisolated class VideoCompositor: NSObject, AVVideoCompositing, @unchecked Send
         guard let image = source(for: layer.content, request: request) else { return black }
         let framed = FilterRenderer.framed(image, rotation: look.rotation, crop: look.crop)
         let looked = FilterRenderer.apply(look.adjustments, filter: look.filter, to: framed)
-        return placed(looked, look.transform).composited(over: black).cropped(to: CGRect(origin: .zero, size: renderSize))
+        let transform = look.transform(atSource: layer.sourceTime(at: request.compositionTime.seconds))
+        return placed(looked, transform).composited(over: black).cropped(to: CGRect(origin: .zero, size: renderSize))
     }
 
     private func source(for content: ClipInstruction.Content, request: AVAsynchronousVideoCompositionRequest) -> CIImage? {

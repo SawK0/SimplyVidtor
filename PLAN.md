@@ -146,7 +146,7 @@ Chunk 5: history
 - [x] Store-ready pack ownership: packs with a `productID` import locked until the product is owned (`MotionLibrary.grant`, saved with the packs). Locked tiles still preview; StoreKit purchase and restore come later and call `grant` / `revoke`
 
 ### M8: Keyframes
-- [ ] Keyframe model shared by clips, text and stickers: values at times, eased between. Clip keyframes are anchored to the footage, so trims don't move them
+- [x] Keyframe model shared by clips, text and stickers (`KeyframeTrack`): values at times, eased between. Clip keyframes are in source time, so trims, splits and speed changes keep them on the same frames; the compositor blends the transform every frame
 - [ ] Transform panel: add or remove a keyframe at the playhead (◆), jump to the previous or next one, easing between keyframes
 - [ ] Keyframe diamonds on timeline items; the compositor interpolates every frame (preview and export)
 - [ ] Text and sticker keyframes (position, size, rotation), combined with their In / Out / Loop animations

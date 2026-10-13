@@ -203,9 +203,45 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         textItems.removeAll { $0.id == id }
     }
 
-    mutating func setTransform(_ transform: ClipTransform, ofClip id: Clip.ID) {
+    /// Sets the clip's transform. With keyframes, sets the keyframe at
+    /// `sourceTime` instead (adding one if needed).
+    mutating func setTransform(_ transform: ClipTransform, ofClip id: Clip.ID, atSource sourceTime: Double? = nil) {
         guard let index = index(ofClip: id) else { return }
-        clips[index].transform = transform.clamped
+        if let sourceTime, !clips[index].transformKeyframes.isEmpty {
+            clips[index].transformKeyframes.set(transform.clamped, at: sourceTime)
+        } else {
+            clips[index].transform = transform.clamped
+        }
+    }
+
+    /// Adds a keyframe holding the current transform at `sourceTime`, or removes
+    /// the one there. Removing the last keyframe keeps its transform.
+    mutating func toggleTransformKeyframe(ofClip id: Clip.ID, atSource sourceTime: Double) {
+        guard let index = index(ofClip: id) else { return }
+        let clip = clips[index]
+        if let removed = clips[index].transformKeyframes.remove(near: sourceTime) {
+            if clips[index].transformKeyframes.isEmpty { clips[index].transform = removed }
+        } else {
+            clips[index].transformKeyframes.set(clip.transform(atSource: sourceTime), at: sourceTime)
+        }
+    }
+
+    mutating func setTransformEasing(_ easing: Easing, ofClip id: Clip.ID, atSource sourceTime: Double) {
+        guard let index = index(ofClip: id) else { return }
+        clips[index].transformKeyframes.setEasing(easing, near: sourceTime)
+    }
+
+    /// Clears keyframes and puts the transform back to its default.
+    mutating func resetTransform(ofClip id: Clip.ID) {
+        guard let index = index(ofClip: id) else { return }
+        clips[index].transform = ClipTransform()
+        clips[index].transformKeyframes = KeyframeTrack()
+    }
+
+    /// The clip under `time` and the source time there.
+    func clipSourceTime(at time: Double) -> (index: Int, sourceTime: Double)? {
+        guard let index = clipIndex(at: time) else { return nil }
+        return (index, clips[index].sourceTime(atOffset: time - startTime(ofClipAt: index)))
     }
 
     /// Turns the clip 90° clockwise, carrying its crop along.

@@ -35,6 +35,9 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
     /// Into the next clip; ignored on the last one.
     var transition: ClipTransition?
     var transform: ClipTransform
+    /// Times are in source seconds, so trims and speed changes keep them on the same frames.
+    /// When there are any, they replace `transform`.
+    var transformKeyframes: KeyframeTrack<ClipTransform>
 
     init(
         id: UUID = UUID(),
@@ -52,7 +55,8 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
         rotation: Int = 0,
         crop: CropRect? = nil,
         transition: ClipTransition? = nil,
-        transform: ClipTransform = ClipTransform()
+        transform: ClipTransform = ClipTransform(),
+        transformKeyframes: KeyframeTrack<ClipTransform> = KeyframeTrack()
     ) {
         self.id = id
         self.mediaFile = mediaFile
@@ -70,6 +74,7 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
         self.crop = crop
         self.transition = transition
         self.transform = transform
+        self.transformKeyframes = transformKeyframes
     }
 
     static func video(mediaFile: String, duration: Double) -> Clip {
@@ -85,6 +90,16 @@ nonisolated struct Clip: Codable, Identifiable, Hashable, Sendable {
     var sourceEnd: Double { sourceStart + sourceDuration }
     /// The level actually played.
     var effectiveVolume: Double { isMuted ? 0 : volume }
+
+    /// Source time for a time `offset` seconds into the clip on the timeline.
+    func sourceTime(atOffset offset: Double) -> Double {
+        sourceStart + offset * speed
+    }
+
+    /// The transform at `sourceTime`, from keyframes if there are any.
+    func transform(atSource sourceTime: Double) -> ClipTransform {
+        transformKeyframes.value(at: sourceTime) ?? transform
+    }
 }
 
 nonisolated extension Clip {
@@ -107,7 +122,8 @@ nonisolated extension Clip {
             rotation: try c.decodeIfPresent(Int.self, forKey: .rotation) ?? 0,
             crop: try c.decodeIfPresent(CropRect.self, forKey: .crop),
             transition: try c.decodeIfPresent(ClipTransition.self, forKey: .transition),
-            transform: try c.decodeIfPresent(ClipTransform.self, forKey: .transform) ?? ClipTransform()
+            transform: try c.decodeIfPresent(ClipTransform.self, forKey: .transform) ?? ClipTransform(),
+            transformKeyframes: try c.decodeIfPresent(KeyframeTrack<ClipTransform>.self, forKey: .transformKeyframes) ?? KeyframeTrack()
         )
     }
 }
@@ -119,10 +135,16 @@ nonisolated struct ClipLook: Hashable, Sendable {
     var rotation = 0
     var crop: CropRect?
     var transform = ClipTransform()
+    var transformKeyframes = KeyframeTrack<ClipTransform>()
+
+    func transform(atSource sourceTime: Double) -> ClipTransform {
+        transformKeyframes.value(at: sourceTime) ?? transform
+    }
 }
 
 nonisolated extension Clip {
     var look: ClipLook {
-        ClipLook(filter: filter, adjustments: adjustments, rotation: rotation, crop: crop, transform: transform)
+        ClipLook(filter: filter, adjustments: adjustments, rotation: rotation, crop: crop, transform: transform,
+                 transformKeyframes: transformKeyframes)
     }
 }

@@ -56,7 +56,7 @@ nonisolated enum CompositionBuilder {
                 videoLane.end = range.end
                 let url = store.url(for: clip.mediaFile)
                 let isPhoto = clip.kind == .photo && FileManager.default.fileExists(atPath: url.path(percentEncoded: false))
-                layers.append(ClipInstruction.Layer(content: isPhoto ? .photo(url) : .blank, clip: clip))
+                layers.append(ClipInstruction.Layer(content: isPhoto ? .photo(url) : .blank, clip: clip, start: range.start.seconds))
                 continue
             }
 
@@ -102,7 +102,8 @@ nonisolated enum CompositionBuilder {
             }
             layers.append(ClipInstruction.Layer(
                 content: .video(trackID: videoLane.track.trackID, orientation: orientation),
-                clip: clip
+                clip: clip,
+                start: range.start.seconds
             ))
         }
 

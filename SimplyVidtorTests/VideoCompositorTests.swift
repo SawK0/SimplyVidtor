@@ -166,6 +166,19 @@ struct VideoCompositorTests {
         #expect(corner.r < 20 && corner.g < 20 && corner.b < 20, "Black past the clip, got \(corner)")
     }
 
+    @Test func transformKeyframesAnimateTheClip() async throws {
+        var clip = try photoClip()
+        clip.transformKeyframes = KeyframeTrack([
+            Keyframe(time: 0, value: ClipTransform()),
+            Keyframe(time: 3, value: ClipTransform(x: 1.5)),
+        ])
+        let output = try await CompositionBuilder.build(Timeline(clips: [clip]), store: store)
+        let start = TestMedia.centerColor(of: try await frame(of: output, at: 0.1))
+        let end = TestMedia.centerColor(of: try await frame(of: output, at: 2.9))
+        #expect(start.r > 230, "Centred at first, got \(start)")
+        #expect(end.r < 30, "Slid right by the end, got \(end)")
+    }
+
     @Test func liveTextChangesShowWithoutRebuilding() async throws {
         let live = LiveStore()
         let output = try await CompositionBuilder.build(Timeline(clips: [try photoClip()]), store: store, live: live)
