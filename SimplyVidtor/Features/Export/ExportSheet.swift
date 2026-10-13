@@ -25,14 +25,18 @@ struct ExportSheet: View {
     @AppStorage("export.resolution") private var resolution = ExportSettings.Resolution.p1080.rawValue
     @AppStorage("export.frameRate") private var frameRate = 30
     @AppStorage("export.hevc") private var usesHEVC = false
+    @AppStorage("export.smartHDR") private var smartHDR = true
 
     private var settings: ExportSettings {
         ExportSettings(
             resolution: ExportSettings.Resolution(rawValue: resolution) ?? .p1080,
             frameRate: ExportSettings.frameRates.contains(frameRate) ? frameRate : 30,
-            usesHEVC: usesHEVC
+            usesHEVC: usesHEVC,
+            smartHDR: smartHDR
         )
     }
+
+    private var exportsHDR: Bool { settings.exportsHDR(containsHDR: session.containsHDR) }
 
     var body: some View {
         VStack(spacing: Theme.Spacing.lg) {
@@ -91,22 +95,35 @@ struct ExportSheet: View {
                 SegmentedPicker(selection: $frameRate, options: ExportSettings.frameRates) { Text("\($0) fps") }
                     .accessibilityIdentifier("export.frameRate")
             }
-            Toggle(isOn: $usesHEVC) {
+            Toggle(isOn: $smartHDR) {
                 VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
-                    Text("HEVC")
-                    Text("Smaller files; plays on recent devices")
+                    Text("Smart HDR")
+                    Text(session.containsHDR ? "Keeps the HDR from your clips" : "No HDR clips in this project")
                         .font(Theme.Typography.caption)
                         .foregroundStyle(Theme.Palette.textSecondary)
                 }
             }
             .toggleStyle(.accentSwitch)
+            .disabled(!session.containsHDR)
+            .accessibilityIdentifier("export.smartHDR")
+            // HDR is always HEVC, so the switch shows on and locked.
+            Toggle(isOn: exportsHDR ? .constant(true) : $usesHEVC) {
+                VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                    Text("HEVC")
+                    Text(exportsHDR ? "Required for HDR" : "Smaller files; plays on recent devices")
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Palette.textSecondary)
+                }
+            }
+            .toggleStyle(.accentSwitch)
+            .disabled(exportsHDR)
             .accessibilityIdentifier("export.hevc")
 
             let size = settings.renderSize(for: session.renderSize)
             HStack {
                 Text("\(Int(size.width)) × \(Int(size.height))")
                 Spacer()
-                Text("About \(ByteCountFormatter.string(fromByteCount: settings.estimatedBytes(duration: session.duration, canvas: session.renderSize), countStyle: .file))")
+                Text("About \(ByteCountFormatter.string(fromByteCount: settings.estimatedBytes(duration: session.duration, canvas: session.renderSize, hdr: exportsHDR), countStyle: .file))")
                     .accessibilityIdentifier("export.estimate")
             }
             .font(Theme.Typography.callout)

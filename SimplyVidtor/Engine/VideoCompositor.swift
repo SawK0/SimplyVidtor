@@ -53,20 +53,31 @@ nonisolated final class ClipInstruction: NSObject, AVVideoCompositionInstruction
 
 /// Renders every frame with Core Image, so photos, per-clip orientation and
 /// (later) filters, transitions and text share one path for preview and export.
-nonisolated final class VideoCompositor: NSObject, AVVideoCompositing, @unchecked Sendable {
-    private let context = CIContext(options: [.cacheIntermediates: false])
+nonisolated class VideoCompositor: NSObject, AVVideoCompositing, @unchecked Sendable {
+    /// `HDRVideoCompositor` overrides this to render 10-bit HLG.
+    class var isHDR: Bool { false }
+
+    private lazy var context = CIContext(options: Self.isHDR
+        ? [.cacheIntermediates: false, .workingFormat: CIFormat.RGBAh]
+        : [.cacheIntermediates: false])
     private let queue = DispatchQueue(label: "VideoCompositor.render")
     private let photos = NSCache<NSURL, CIImage>()
     private let texts = NSCache<NSString, CGImage>()
     private var renderSize = CGSize(width: 1080, height: 1920)
 
-    let sourcePixelBufferAttributes: [String: any Sendable]? = [
-        kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-    ]
+    private static let hdrFormat = kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
+    private static let hlg = CGColorSpace(name: CGColorSpace.itur_2100_HLG)!
 
-    let requiredPixelBufferAttributesForRenderContext: [String: any Sendable] = [
-        kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-    ]
+    var sourcePixelBufferAttributes: [String: any Sendable]? {
+        [kCVPixelBufferPixelFormatTypeKey as String: Self.isHDR ? Self.hdrFormat : kCVPixelFormatType_32BGRA]
+    }
+
+    var requiredPixelBufferAttributesForRenderContext: [String: any Sendable] {
+        [kCVPixelBufferPixelFormatTypeKey as String: Self.isHDR ? Self.hdrFormat : kCVPixelFormatType_32BGRA]
+    }
+
+    var supportsHDRSourceFrames: Bool { Self.isHDR }
+    var supportsWideColorSourceFrames: Bool { Self.isHDR }
 
     func renderContextChanged(_ newRenderContext: AVVideoCompositionRenderContext) {
         queue.sync { renderSize = newRenderContext.size }
@@ -78,7 +89,15 @@ nonisolated final class VideoCompositor: NSObject, AVVideoCompositing, @unchecke
                 request.finish(with: CocoaError(.featureUnsupported))
                 return
             }
-            context.render(withOverlays(frame(for: request), request: request), to: output)
+            let image = withOverlays(frame(for: request), request: request)
+            if Self.isHDR {
+                CVBufferSetAttachment(output, kCVImageBufferColorPrimariesKey, kCVImageBufferColorPrimaries_ITU_R_2020, .shouldPropagate)
+                CVBufferSetAttachment(output, kCVImageBufferTransferFunctionKey, kCVImageBufferTransferFunction_ITU_R_2100_HLG, .shouldPropagate)
+                CVBufferSetAttachment(output, kCVImageBufferYCbCrMatrixKey, kCVImageBufferYCbCrMatrix_ITU_R_2020, .shouldPropagate)
+                context.render(image, to: output, bounds: CGRect(origin: .zero, size: renderSize), colorSpace: Self.hlg)
+            } else {
+                context.render(image, to: output)
+            }
             request.finish(withComposedVideoFrame: output)
         }
     }
@@ -174,6 +193,11 @@ nonisolated final class VideoCompositor: NSObject, AVVideoCompositing, @unchecke
         let y = (renderSize.height - scaled.extent.height) / 2
         return scaled.transformed(by: CGAffineTransform(translationX: x, y: y))
     }
+}
+
+/// Renders frames as 10-bit HLG (BT.2020) for HDR export.
+nonisolated final class HDRVideoCompositor: VideoCompositor, @unchecked Sendable {
+    override class var isHDR: Bool { true }
 }
 
 nonisolated extension CGImagePropertyOrientation {

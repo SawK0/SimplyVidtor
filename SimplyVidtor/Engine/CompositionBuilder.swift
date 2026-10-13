@@ -14,6 +14,8 @@ nonisolated enum CompositionBuilder {
         let composition: AVComposition
         let audioMix: AVAudioMix
         let videoComposition: AVVideoComposition
+        /// Whether any source clip has HDR video.
+        let containsHDR: Bool
     }
 
     /// Text is drawn from `overlays` (made from the timeline when not given),
@@ -27,6 +29,7 @@ nonisolated enum CompositionBuilder {
         let blank = try await loadTracks(of: blankURL)
         let clips = timeline.clips
         var firstVideoSize: CGSize?
+        var containsHDR = false
         var layers: [ClipInstruction.Layer] = []
 
         // Clip ranges are computed once so track segments and instructions meet exactly.
@@ -89,6 +92,9 @@ nonisolated enum CompositionBuilder {
                                                    timeRange: CMTimeRange(start: starts[index + 1], end: range.end))
             }
 
+            if !containsHDR, try await sourceVideo.load(.mediaCharacteristics).contains(.containsHDRVideo) {
+                containsHDR = true
+            }
             let orientation = CGImagePropertyOrientation(source.transform)
             if firstVideoSize == nil {
                 let size = try await sourceVideo.load(.naturalSize)
@@ -147,7 +153,7 @@ nonisolated enum CompositionBuilder {
         videoComposition.frameDuration = CMTime(value: 1, timescale: frameRate)
         videoComposition.renderSize = renderSize(aspectRatio: timeline.aspectRatio, firstVideoSize: firstVideoSize)
 
-        return Output(composition: composition, audioMix: audioMix, videoComposition: videoComposition)
+        return Output(composition: composition, audioMix: audioMix, videoComposition: videoComposition, containsHDR: containsHDR)
     }
 
     /// A composition track filled up to `end`.

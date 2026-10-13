@@ -43,6 +43,44 @@ struct ExporterTests {
         #expect(progress.last == 1)
     }
 
+    private func videoFormat(of url: URL) async throws -> CMFormatDescription {
+        let track = try #require(try await AVURLAsset(url: url).loadTracks(withMediaType: .video).first)
+        return try #require(try await track.load(.formatDescriptions).first)
+    }
+
+    @Test func hdrClipExportsAsTenBitHLGHEVC() async throws {
+        let clip = Clip.video(mediaFile: try store.moveIn(try await TestMedia.hdrVideoCopy()), duration: 1)
+        let timeline = Timeline(clips: [clip])
+        #expect(try await CompositionBuilder.build(timeline, store: store).containsHDR)
+
+        let url = try await Exporter.export(timeline, store: store, settings: ExportSettings(resolution: .p720))
+        defer { try? FileManager.default.removeItem(at: url) }
+        let format = try await videoFormat(of: url)
+        #expect(CMFormatDescriptionGetMediaSubType(format) == kCMVideoCodecType_HEVC)
+        let transfer = CMFormatDescriptionGetExtension(format, extensionKey: kCMFormatDescriptionExtension_TransferFunction)
+        #expect(transfer as? String == kCMFormatDescriptionTransferFunction_ITU_R_2100_HLG as String)
+        let depth = CMFormatDescriptionGetExtension(format, extensionKey: kCMFormatDescriptionExtension_BitsPerComponent)
+        #expect(depth as? Int == 10, "Got \(String(describing: depth))")
+    }
+
+    @Test func smartHDROffExportsSDR() async throws {
+        let clip = Clip.video(mediaFile: try store.moveIn(try await TestMedia.hdrVideoCopy()), duration: 1)
+        let url = try await Exporter.export(
+            Timeline(clips: [clip]), store: store, settings: ExportSettings(resolution: .p720, smartHDR: false)
+        )
+        defer { try? FileManager.default.removeItem(at: url) }
+        let transfer = CMFormatDescriptionGetExtension(try await videoFormat(of: url), extensionKey: kCMFormatDescriptionExtension_TransferFunction)
+        #expect(transfer as? String != kCMFormatDescriptionTransferFunction_ITU_R_2100_HLG as String)
+    }
+
+    @Test func smartHDROnlyAppliesToHDRProjects() async throws {
+        #expect(ExportSettings().exportsHDR(containsHDR: true))
+        #expect(!ExportSettings().exportsHDR(containsHDR: false))
+        #expect(!ExportSettings(smartHDR: false).exportsHDR(containsHDR: true))
+        let clip = Clip.video(mediaFile: try store.moveIn(TestMedia.sampleVideoCopy()), duration: 2)
+        #expect(try await !CompositionBuilder.build(Timeline(clips: [clip]), store: store).containsHDR)
+    }
+
     @Test func emptyTimelineFails() async {
         await #expect(throws: Exporter.Failure.self) {
             try await Exporter.export(Timeline(), store: store, settings: ExportSettings())

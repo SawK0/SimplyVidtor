@@ -1,4 +1,6 @@
 import AVFoundation
+import CoreImage
+import VideoToolbox
 import CoreGraphics
 import Foundation
 import ImageIO
@@ -39,6 +41,46 @@ enum TestMedia {
         let output = URL.temporaryDirectory.appending(path: "\(UUID().uuidString).mov")
         try await session.export(to: output, as: .mov)
         return output
+    }
+
+    /// A 1 s, 10-bit HLG HEVC clip, like iPhone HDR video.
+    static func hdrVideoCopy() async throws -> URL {
+        let url = URL.temporaryDirectory.appending(path: "\(UUID().uuidString).mov")
+        let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.hevc,
+            AVVideoWidthKey: 320,
+            AVVideoHeightKey: 180,
+            AVVideoCompressionPropertiesKey: [AVVideoProfileLevelKey: kVTProfileLevel_HEVC_Main10_AutoLevel],
+            AVVideoColorPropertiesKey: [
+                AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_2020,
+                AVVideoTransferFunctionKey: AVVideoTransferFunction_ITU_R_2100_HLG,
+                AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_2020,
+            ],
+        ])
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange,
+            kCVPixelBufferWidthKey as String: 320,
+            kCVPixelBufferHeightKey as String: 180,
+        ])
+        writer.add(input)
+        writer.startWriting()
+        writer.startSession(atSourceTime: .zero)
+
+        let context = CIContext()
+        let hlg = CGColorSpace(name: CGColorSpace.itur_2100_HLG)!
+        let image = CIImage(color: CIColor(red: 0.8, green: 0.6, blue: 0.2)).cropped(to: CGRect(x: 0, y: 0, width: 320, height: 180))
+        for frame in 0..<30 {
+            while !input.isReadyForMoreMediaData { try await Task.sleep(for: .milliseconds(5)) }
+            var buffer: CVPixelBuffer?
+            CVPixelBufferPoolCreatePixelBuffer(nil, adaptor.pixelBufferPool!, &buffer)
+            context.render(image, to: buffer!, bounds: image.extent, colorSpace: hlg)
+            adaptor.append(buffer!, withPresentationTime: CMTime(value: CMTimeValue(frame), timescale: 30))
+        }
+        input.markAsFinished()
+        await writer.finishWriting()
+        if let error = writer.error { throw error }
+        return url
     }
 
     static func pngData(width: Int = 300, height: Int = 200) -> Data {

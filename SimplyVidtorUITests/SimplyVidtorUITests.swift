@@ -39,6 +39,7 @@ final class SimplyVidtorUITests: XCTestCase {
         let start = app.buttons["export.start"]
         XCTAssertTrue(start.waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["export.estimate"].label.hasPrefix("About"))
+        XCTAssertFalse(app.switches["export.smartHDR"].isEnabled, "No HDR clips in a stub project")
 
         // 4K takes long enough to cancel.
         app.descendants(matching: .any)["export.resolution"].buttons["4K"].tap()

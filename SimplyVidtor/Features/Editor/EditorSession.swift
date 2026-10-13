@@ -11,6 +11,8 @@ final class EditorSession {
     private(set) var buildError: (any Error)?
     /// Pixel size of the rendered frame, for mapping overlays onto the preview.
     private(set) var renderSize = CompositionBuilder.defaultRenderSize
+    /// Whether any clip has HDR video, so export can offer Smart HDR.
+    private(set) var containsHDR = false
     var selectedClipID: Clip.ID? {
         didSet {
             if selectedClipID != nil {
@@ -291,6 +293,7 @@ final class EditorSession {
             item.audioMix = output.audioMix
             item.videoComposition = output.videoComposition
             renderSize = output.videoComposition.renderSize
+            containsHDR = output.containsHDR
             observeEnd(of: item)
             player.replaceCurrentItem(with: item)
             buildError = nil

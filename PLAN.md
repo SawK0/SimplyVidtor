@@ -128,7 +128,7 @@ Chunk 5: history
 
 ### M5: Export (Figma 03, 08, 09)
 - [x] Export sheet: resolution, frame rate, HEVC, estimated size (settings remembered). `Exporter` renders through the same composition and compositor as the preview
-- [ ] Smart HDR: needs a 10-bit compositor pipeline (currently 8-bit BGRA)
+- [x] Smart HDR: projects with HDR clips export 10-bit HLG HEVC through `HDRVideoCompositor` (half-float working space); the preview stays 8-bit
 - [x] Exporting screen with progress and cancel
 - [x] Save to Photos (add-only permission, Settings link if denied), Done screen with share sheet
 

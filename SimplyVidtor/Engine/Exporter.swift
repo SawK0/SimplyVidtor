@@ -19,6 +19,13 @@ nonisolated struct ExportSettings: Hashable, Sendable {
     var frameRate = 30
     /// HEVC instead of H.264: about 40% smaller at the same quality.
     var usesHEVC = false
+    /// Keep HDR when the project has HDR clips (10-bit HLG, always HEVC).
+    var smartHDR = true
+
+    /// Whether a project with or without HDR clips exports as HDR.
+    func exportsHDR(containsHDR: Bool) -> Bool {
+        smartHDR && containsHDR
+    }
 
     /// Output size: the canvas scaled so its shorter side matches the
     /// resolution, rounded to even pixels.
@@ -31,10 +38,10 @@ nonisolated struct ExportSettings: Hashable, Sendable {
     }
 
     /// Rough file size in bytes for `duration` seconds of `canvas`.
-    func estimatedBytes(duration: Double, canvas: CGSize) -> Int64 {
+    func estimatedBytes(duration: Double, canvas: CGSize, hdr: Bool = false) -> Int64 {
         let size = renderSize(for: canvas)
         // Bits per pixel per frame that high-quality exports land near.
-        let bitsPerPixel = usesHEVC ? 0.15 : 0.25
+        let bitsPerPixel = hdr ? 0.18 : usesHEVC ? 0.15 : 0.25
         let videoBits = Double(size.width * size.height) * Double(frameRate) * bitsPerPixel
         let audioBits = 128_000.0
         return Int64((videoBits + audioBits) * max(duration, 0) / 8)
@@ -58,11 +65,13 @@ nonisolated enum Exporter {
 
     /// Exports to a new file in the temporary folder and returns its URL.
     /// `progress` is called with 0...1; cancelling the task cancels the export.
+    /// `forceHDR` is for tests, which have no HDR media.
     @concurrent
     static func export(
         _ timeline: Timeline,
         store: MediaStore,
         settings: ExportSettings,
+        forceHDR: Bool = false,
         progress: @escaping @Sendable (Double) -> Void = { _ in }
     ) async throws -> URL {
         guard !timeline.clips.isEmpty else { throw Failure.emptyTimeline }
@@ -73,7 +82,14 @@ nonisolated enum Exporter {
         videoComposition.renderSize = settings.renderSize(for: output.videoComposition.renderSize)
         videoComposition.frameDuration = CMTime(value: 1, timescale: CMTimeScale(settings.frameRate))
 
-        let preset = settings.usesHEVC ? AVAssetExportPresetHEVCHighestQuality : AVAssetExportPresetHighestQuality
+        let hdr = forceHDR || settings.exportsHDR(containsHDR: output.containsHDR)
+        if hdr {
+            videoComposition.customVideoCompositorClass = HDRVideoCompositor.self
+            videoComposition.colorPrimaries = AVVideoColorPrimaries_ITU_R_2020
+            videoComposition.colorTransferFunction = AVVideoTransferFunction_ITU_R_2100_HLG
+            videoComposition.colorYCbCrMatrix = AVVideoYCbCrMatrix_ITU_R_2020
+        }
+        let preset = hdr || settings.usesHEVC ? AVAssetExportPresetHEVCHighestQuality : AVAssetExportPresetHighestQuality
         guard let session = AVAssetExportSession(asset: output.composition, presetName: preset) else {
             throw Failure.unsupported
         }
