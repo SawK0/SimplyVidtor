@@ -34,7 +34,7 @@ struct RootView: View {
             }
         }
         .fullScreenCover(item: $router.openProject) { project in
-            EditorView(project: project, onClose: router.closeEditor)
+            EditorView(project: project, showsFormatOnOpen: router.openedProjectIsNew, onClose: router.closeEditor)
         }
         .task {
             try? library.removeUnusedMedia()

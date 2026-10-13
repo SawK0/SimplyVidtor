@@ -13,7 +13,7 @@ nonisolated struct ExportSettings: Hashable, Sendable {
         }
     }
 
-    static let frameRates = [24, 30, 60]
+    static let frameRates = ProjectFormat.frameRates
 
     var resolution: Resolution = .p1080
     var frameRate = 30

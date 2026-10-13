@@ -2,23 +2,43 @@ import Foundation
 
 /// Canvas shape for the whole project. `nil` on the timeline means "match the first clip".
 nonisolated enum AspectRatio: String, Codable, CaseIterable, Sendable {
-    case portrait, square, landscape
+    case portrait, landscape, square, fourByFive, fourByThree
 
     /// Width over height.
     var value: Double {
         switch self {
         case .portrait: 9.0 / 16.0
-        case .square: 1
         case .landscape: 16.0 / 9.0
+        case .square: 1
+        case .fourByFive: 4.0 / 5.0
+        case .fourByThree: 4.0 / 3.0
         }
     }
 
     var title: String {
         switch self {
         case .portrait: "9:16"
-        case .square: "1:1"
         case .landscape: "16:9"
+        case .square: "1:1"
+        case .fourByFive: "4:5"
+        case .fourByThree: "4:3"
         }
+    }
+}
+
+/// The project's frame, like a sequence's settings in a desktop editor.
+nonisolated struct ProjectFormat: Codable, Hashable, Sendable {
+    /// Shorter side in pixels.
+    static let resolutions = [720, 1080, 2160]
+    static let frameRates = [24, 25, 30, 60]
+
+    /// `nil` matches the first clip's shape.
+    var aspectRatio: AspectRatio?
+    var resolution = 1080
+    var frameRate = 30
+
+    static func title(ofResolution resolution: Int) -> String {
+        resolution == 2160 ? "4K" : "\(resolution)p"
     }
 }
 

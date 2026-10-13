@@ -134,7 +134,7 @@ Chunk 5: history
 
 ### M6: Canvas & framing
 - [x] Live look preview: adjust, filters, crop / rotate update while dragging, read per frame from `LiveStore` like text. Speed and volume apply on release (playback pauses while editing)
-- [ ] Project format: frame shape (9:16, 16:9, 1:1, 4:5, 4:3), base resolution and frame rate. Chosen after picking media (preset "Match first clip"), changeable from the editor. The preview shows the exact output frame; export defaults to it
+- [x] Project format: frame shape (9:16, 16:9, 1:1, 4:5, 4:3), base resolution and frame rate (`ProjectFormat` on the timeline). New projects open the format sheet (preset "Match first clip"); the top bar reopens it. The preview shows the exact output frame (capped at 1080p); export defaults to the format
 - [ ] Clip transform: position, scale, rotation, opacity, Fit / Fill. Pinch / drag / rotate on the preview and a Transform panel. Static values first; animation comes in M7
 - [ ] Tap the ruler to jump the playhead (the playhead stays centred, like other mobile editors)
 

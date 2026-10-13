@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Project canvas shape, plus rotate and crop for the selected clip.
+/// Rotate and crop for the selected clip.
 struct CropPanel: View {
     let session: EditorSession
     let store: MediaStore
@@ -24,11 +24,6 @@ struct CropPanel: View {
 
     private func controls(for clip: Clip) -> some View {
         VStack(spacing: Theme.Spacing.xs) {
-            SegmentedPicker(selection: aspectBinding, options: [nil] + AspectRatio.allCases.map(Optional.some)) {
-                Text($0?.title ?? String(localized: "Original"))
-            }
-            .accessibilityIdentifier("editor.crop.canvas")
-
             HStack(spacing: 0) {
                 ToolButton(title: "Rotate", systemImage: "rotate.right") {
                     session.edit { $0.rotateClip(clip.id) }
@@ -46,13 +41,6 @@ struct CropPanel: View {
                 .accessibilityIdentifier("editor.crop.reset")
             }
         }
-    }
-
-    private var aspectBinding: Binding<AspectRatio?> {
-        Binding(
-            get: { session.timeline.aspectRatio },
-            set: { ratio in session.edit { $0.aspectRatio = ratio } }
-        )
     }
 }
 

@@ -3,12 +3,15 @@ import SwiftUI
 
 struct EditorView: View {
     let project: Project
+    /// New projects open with the format sheet so the frame can be chosen first.
+    var showsFormatOnOpen = false
     let onClose: () -> Void
 
     @State private var pickerTab: MediaPickerTab?
     @State private var activeTool: Tool?
     @State private var isExporting = false
     @State private var isFullscreen = false
+    @State private var isEditingFormat = false
     @State private var session: EditorSession?
     @State private var loadFailed = false
     @Environment(\.modelContext) private var context
@@ -36,6 +39,11 @@ struct EditorView: View {
         .fullScreenCover(isPresented: $isFullscreen) {
             if let session {
                 FullscreenPreviewView(session: session) { isFullscreen = false }
+            }
+        }
+        .sheet(isPresented: $isEditingFormat) {
+            if let session {
+                ProjectFormatSheet(session: session) { isEditingFormat = false }
             }
         }
         .sheet(isPresented: $isExporting) {
@@ -122,6 +130,7 @@ struct EditorView: View {
             let session = try EditorSession(project: project, store: store)
             await session.rebuild()
             self.session = session
+            if showsFormatOnOpen { isEditingFormat = true }
         } catch {
             loadFailed = true
         }
@@ -135,6 +144,12 @@ struct EditorView: View {
                 .font(Theme.Typography.headline)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity)
+            CircleIconButton(systemImage: "aspectratio", accessibilityLabel: "Project format") {
+                session?.pause()
+                isEditingFormat = true
+            }
+            .disabled(session == nil)
+            .accessibilityIdentifier("editor.format")
             Button("Export") {
                 session?.pause()
                 isExporting = true
@@ -148,7 +163,8 @@ struct EditorView: View {
 
     private var preview: some View {
         ZStack {
-            Color.black
+            // Lighter than the frame's black, so the output frame's edges show.
+            Theme.Palette.bgSurface
             if let session {
                 PlayerView(player: session.player)
                     .accessibilityHidden(true)

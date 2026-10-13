@@ -6,7 +6,6 @@ import AVFoundation
 /// `VideoCompositor`.
 nonisolated enum CompositionBuilder {
     static let timescale: CMTimeScale = 600
-    static let frameRate: Int32 = 30
     /// Used when the timeline has no video to take a size from.
     static let defaultRenderSize = CGSize(width: 1080, height: 1920)
 
@@ -152,8 +151,8 @@ nonisolated enum CompositionBuilder {
         let videoComposition = AVMutableVideoComposition()
         videoComposition.customVideoCompositorClass = VideoCompositor.self
         videoComposition.instructions = instructions
-        videoComposition.frameDuration = CMTime(value: 1, timescale: frameRate)
-        videoComposition.renderSize = renderSize(aspectRatio: timeline.aspectRatio, firstVideoSize: firstVideoSize)
+        videoComposition.frameDuration = CMTime(value: 1, timescale: CMTimeScale(timeline.format.frameRate))
+        videoComposition.renderSize = renderSize(format: timeline.format, firstVideoSize: firstVideoSize)
 
         return Output(composition: composition, audioMix: audioMix, videoComposition: videoComposition, containsHDR: containsHDR)
     }
@@ -218,21 +217,18 @@ nonisolated enum CompositionBuilder {
         }
     }
 
-    /// The first video's framed size, or a canvas of `aspectRatio` with the same
-    /// long side. Sides are rounded to even pixels for the encoder.
-    static func renderSize(aspectRatio: AspectRatio?, firstVideoSize: CGSize?) -> CGSize {
-        let base = firstVideoSize ?? defaultRenderSize
-        let size: CGSize
-        if let aspectRatio {
-            let long = max(base.width, base.height)
-            size = aspectRatio.value < 1
-                ? CGSize(width: long * aspectRatio.value, height: long)
-                : CGSize(width: long, height: long / aspectRatio.value)
-        } else {
-            size = base
-        }
-        let even = { (side: CGFloat) in max(2, (side / 2).rounded() * 2) }
-        return CGSize(width: even(size.width), height: even(size.height))
+    /// Preview frames are capped here; export rescales to its own resolution.
+    static let maxWorkingResolution = 1080
+
+    /// The format's shape (or the first video's framed shape), scaled so the
+    /// shorter side is the format's resolution, capped for previewing.
+    /// Sides are rounded to even pixels for the encoder.
+    static func renderSize(format: ProjectFormat, firstVideoSize: CGSize?) -> CGSize {
+        let shape = format.aspectRatio.map { CGSize(width: $0.value, height: 1) } ?? firstVideoSize ?? defaultRenderSize
+        let short = CGFloat(min(format.resolution, maxWorkingResolution))
+        let scale = short / max(min(shape.width, shape.height), 0.0001)
+        let even = { (side: CGFloat) in max(2, (side * scale / 2).rounded() * 2) }
+        return CGSize(width: even(shape.width), height: even(shape.height))
     }
 
     static func time(_ seconds: Double) -> CMTime {

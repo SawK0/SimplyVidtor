@@ -10,6 +10,8 @@ final class AppRouter {
 
     var modal: Modal?
     var openProject: Project?
+    /// The open project was just created, so the editor offers its format first.
+    private(set) var openedProjectIsNew = false
 
     /// Opened after the picker dismisses; SwiftUI drops a cover presented mid-dismiss.
     private var pendingProject: Project?
@@ -32,15 +34,18 @@ final class AppRouter {
     func modalDidDismiss() {
         if let project = pendingProject {
             pendingProject = nil
+            openedProjectIsNew = true
             openProject = project
         }
     }
 
     func open(_ project: Project) {
+        openedProjectIsNew = false
         openProject = project
     }
 
     func closeEditor() {
         openProject = nil
+        openedProjectIsNew = false
     }
 }

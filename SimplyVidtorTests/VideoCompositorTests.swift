@@ -148,22 +148,32 @@ struct VideoCompositorTests {
 
     @Test func renderSizeComesFromFirstVideo() async throws {
         let withVideo = try await CompositionBuilder.build(Timeline(clips: [try photoClip(), try videoClip()]), store: store)
-        #expect(withVideo.videoComposition.renderSize == CGSize(width: 160, height: 90))
+        #expect(withVideo.videoComposition.renderSize == CGSize(width: 1920, height: 1080), "The 160×90 video's shape at 1080p")
         let photosOnly = try await CompositionBuilder.build(Timeline(clips: [try photoClip()]), store: store)
         #expect(photosOnly.videoComposition.renderSize == CompositionBuilder.defaultRenderSize)
 
         var rotated = try videoClip()
         rotated.rotation = 1
         let turned = try await CompositionBuilder.build(Timeline(clips: [rotated]), store: store)
-        #expect(turned.videoComposition.renderSize == CGSize(width: 90, height: 160))
+        #expect(turned.videoComposition.renderSize == CGSize(width: 1080, height: 1920))
     }
 
-    @Test func aspectRatioSetsCanvasFromTheLongSide() {
-        let base = CGSize(width: 1920, height: 1080)
-        #expect(CompositionBuilder.renderSize(aspectRatio: nil, firstVideoSize: base) == base)
-        #expect(CompositionBuilder.renderSize(aspectRatio: .portrait, firstVideoSize: base) == CGSize(width: 1080, height: 1920))
-        #expect(CompositionBuilder.renderSize(aspectRatio: .square, firstVideoSize: base) == CGSize(width: 1920, height: 1920))
-        #expect(CompositionBuilder.renderSize(aspectRatio: nil, firstVideoSize: CGSize(width: 101, height: 57)) == CGSize(width: 102, height: 58))
+    @Test func formatSetsCanvasShapeAndShortSide() {
+        let video = CGSize(width: 1920, height: 1080)
+        #expect(CompositionBuilder.renderSize(format: ProjectFormat(), firstVideoSize: video) == video)
+        #expect(CompositionBuilder.renderSize(format: ProjectFormat(aspectRatio: .portrait), firstVideoSize: video) == CGSize(width: 1080, height: 1920))
+        #expect(CompositionBuilder.renderSize(format: ProjectFormat(aspectRatio: .fourByFive), firstVideoSize: video) == CGSize(width: 1080, height: 1350))
+        #expect(CompositionBuilder.renderSize(format: ProjectFormat(aspectRatio: .square, resolution: 720), firstVideoSize: video) == CGSize(width: 720, height: 720))
+        // Previews are capped at 1080p; export rescales.
+        #expect(CompositionBuilder.renderSize(format: ProjectFormat(resolution: 2160), firstVideoSize: video) == video)
+        #expect(CompositionBuilder.renderSize(format: ProjectFormat(), firstVideoSize: CGSize(width: 160, height: 90)) == video)
+    }
+
+    @Test func formatFrameRateSetsFrameDuration() async throws {
+        var timeline = Timeline(clips: [try photoClip()])
+        timeline.format.frameRate = 24
+        let output = try await CompositionBuilder.build(timeline, store: store)
+        #expect(output.videoComposition.frameDuration == CMTime(value: 1, timescale: 24))
     }
 
     @Test func instructionsCoverWholeCompositionWithoutGaps() async throws {

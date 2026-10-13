@@ -6,8 +6,13 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
     var clips: [Clip] = []
     var audioItems: [AudioItem] = []
     var textItems: [TextItem] = []
+    var format = ProjectFormat()
+
     /// `nil` matches the first clip's shape.
-    var aspectRatio: AspectRatio?
+    var aspectRatio: AspectRatio? {
+        get { format.aspectRatio }
+        set { format.aspectRatio = newValue }
+    }
 
     var duration: Double {
         startTime(ofClipAt: clips.count)
@@ -259,14 +264,29 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
 }
 
 nonisolated extension Timeline {
+    private enum CodingKeys: String, CodingKey {
+        case clips, audioItems, textItems, format
+        /// Saved before `format`; read only.
+        case aspectRatio
+    }
+
     /// Lists and fields added after the first release are decoded leniently.
     init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        let legacyAspect = try c.decodeIfPresent(AspectRatio.self, forKey: .aspectRatio)
         self.init(
             clips: try c.decode([Clip].self, forKey: .clips),
             audioItems: try c.decodeIfPresent([AudioItem].self, forKey: .audioItems) ?? [],
             textItems: try c.decodeIfPresent([TextItem].self, forKey: .textItems) ?? [],
-            aspectRatio: try c.decodeIfPresent(AspectRatio.self, forKey: .aspectRatio)
+            format: try c.decodeIfPresent(ProjectFormat.self, forKey: .format) ?? ProjectFormat(aspectRatio: legacyAspect)
         )
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(clips, forKey: .clips)
+        try c.encode(audioItems, forKey: .audioItems)
+        try c.encode(textItems, forKey: .textItems)
+        try c.encode(format, forKey: .format)
     }
 }

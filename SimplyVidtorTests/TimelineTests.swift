@@ -449,4 +449,17 @@ struct TimelineTests {
         #expect(item.cut(at: 9) == item)
         #expect(item.cut(at: 1) == nil)
     }
+
+    @Test func legacyAspectRatioMigratesIntoFormat() throws {
+        let json = #"{"clips":[],"audioItems":[],"aspectRatio":"square"}"#
+        let timeline = try JSONDecoder().decode(Timeline.self, from: Data(json.utf8))
+        #expect(timeline.format == ProjectFormat(aspectRatio: .square))
+    }
+
+    @Test func formatRoundTrips() throws {
+        var timeline = sample()
+        timeline.format = ProjectFormat(aspectRatio: .fourByThree, resolution: 2160, frameRate: 60)
+        let decoded = try JSONDecoder().decode(Timeline.self, from: JSONEncoder().encode(timeline))
+        #expect(decoded == timeline)
+    }
 }

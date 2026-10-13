@@ -22,10 +22,19 @@ struct ExportSheet: View {
         case failed(String)
     }
     @State private var exportTask: Task<Void, Never>?
-    @AppStorage("export.resolution") private var resolution = ExportSettings.Resolution.p1080.rawValue
-    @AppStorage("export.frameRate") private var frameRate = 30
+    /// Start from the project's format.
+    @State private var resolution: Int
+    @State private var frameRate: Int
     @AppStorage("export.hevc") private var usesHEVC = false
     @AppStorage("export.smartHDR") private var smartHDR = true
+
+    init(session: EditorSession, store: MediaStore, onClose: @escaping () -> Void) {
+        self.session = session
+        self.store = store
+        self.onClose = onClose
+        _resolution = State(initialValue: session.timeline.format.resolution)
+        _frameRate = State(initialValue: session.timeline.format.frameRate)
+    }
 
     private var settings: ExportSettings {
         ExportSettings(
@@ -121,7 +130,7 @@ struct ExportSheet: View {
 
             let size = settings.renderSize(for: session.renderSize)
             HStack {
-                Text("\(Int(size.width)) × \(Int(size.height))")
+                Text(verbatim: "\(Int(size.width)) × \(Int(size.height))")
                 Spacer()
                 Text("About \(ByteCountFormatter.string(fromByteCount: settings.estimatedBytes(duration: session.duration, canvas: session.renderSize, hdr: exportsHDR), countStyle: .file))")
                     .accessibilityIdentifier("export.estimate")

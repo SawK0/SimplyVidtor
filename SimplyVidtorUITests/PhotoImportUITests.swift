@@ -28,6 +28,11 @@ final class PhotoImportUITests: XCTestCase {
         XCTAssertEqual(addButton.label, "Add 2 clips")
         addButton.tap()
 
+        // New projects open with the format sheet; keep the default.
+        let formatDone = app.buttons["format.done"]
+        XCTAssertTrue(formatDone.waitForExistence(timeout: 15), "Editor did not open")
+        formatDone.tap()
+
         // 2 s video + 3 s photo.
         let timecode = app.staticTexts["editor.timecode"]
         XCTAssertTrue(timecode.waitForExistence(timeout: 15), "Editor did not open")

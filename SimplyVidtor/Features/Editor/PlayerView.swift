@@ -8,6 +8,9 @@ struct PlayerView: UIViewRepresentable {
     func makeUIView(context: Context) -> PlayerLayerView {
         let view = PlayerLayerView()
         view.playerLayer.videoGravity = .resizeAspect
+        // Clear, so the area around the frame shows the background and the frame's edges are visible.
+        view.playerLayer.backgroundColor = UIColor.clear.cgColor
+        view.backgroundColor = .clear
         view.playerLayer.player = player
         return view
     }

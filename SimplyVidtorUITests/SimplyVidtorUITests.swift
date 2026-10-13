@@ -449,6 +449,27 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testFormatSheetChangesFrameAndReopens() throws {
+        app.buttons["projects.newProject"].tap()
+        app.buttons["mediaPicker.add"].tap()
+        let summary = app.staticTexts["format.summary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 5), "New project opens with its format")
+
+        app.buttons["format.shape.square"].tap()
+        expectation(for: NSPredicate(format: "label BEGINSWITH '1080 × 1080'"), evaluatedWith: summary)
+        waitForExpectations(timeout: 3)
+        app.descendants(matching: .any)["format.frameRate"].buttons["24 fps"].tap()
+        expectation(for: NSPredicate(format: "label ENDSWITH '24 fps'"), evaluatedWith: summary)
+        waitForExpectations(timeout: 3)
+        app.buttons["format.done"].tap()
+
+        app.buttons["editor.format"].tap()
+        XCTAssertTrue(app.buttons["format.shape.square"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["format.shape.square"].isSelected, "The choice was saved")
+        XCTAssertTrue(app.buttons["editor.undo"].isEnabled)
+    }
+
+    @MainActor
     func testCancellingPickerStaysOnProjects() throws {
         app.buttons["projects.newProject"].tap()
 
@@ -527,8 +548,17 @@ final class SimplyVidtorUITests: XCTestCase {
         XCTAssertTrue(add.waitForExistence(timeout: 3))
         add.tap()
         XCTAssertTrue(app.buttons["editor.export"].waitForExistence(timeout: 3), "Editor did not open")
+        // New projects open with the format sheet; keep the default.
+        closeFormatSheet()
         // Wait until the editor has settled; presenting a cover mid-transition is dropped.
         XCTAssertTrue(app.descendants(matching: .any)["timeline.clip.0"].waitForExistence(timeout: 5))
+    }
+
+    private func closeFormatSheet() {
+        let done = app.buttons["format.done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 5), "New project should offer its format")
+        done.tap()
+        XCTAssertTrue(done.waitForNonExistence(timeout: 3))
     }
 
     private func openMenu(on projectName: String) {
