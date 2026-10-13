@@ -176,6 +176,23 @@ final class EditorSession {
         return timeline.clips[index]
     }
 
+    /// The selected clip's source time at the playhead; `nil` when the playhead is off the clip.
+    var selectedClipSourceTime: Double? {
+        guard let id = selectedClipID, let index = timeline.index(ofClip: id) else { return nil }
+        let range = timeline.timeRange(ofClipAt: index)
+        let slack = KeyframeControls.tolerance
+        guard currentTime >= range.lowerBound - slack, currentTime <= range.upperBound + slack else { return nil }
+        let clip = timeline.clips[index]
+        return clip.sourceTime(atOffset: min(max(currentTime - range.lowerBound, 0), clip.duration))
+    }
+
+    /// Where a clip's source time falls on the timeline.
+    func timelineTime(ofClip id: Clip.ID, atSource sourceTime: Double) -> Double? {
+        guard let index = timeline.index(ofClip: id) else { return nil }
+        let clip = timeline.clips[index]
+        return timeline.startTime(ofClipAt: index) + (sourceTime - clip.sourceStart) / clip.speed
+    }
+
     var selectedClip: Clip? {
         guard let id = selectedClipID, let index = timeline.index(ofClip: id) else { return nil }
         return timeline.clips[index]

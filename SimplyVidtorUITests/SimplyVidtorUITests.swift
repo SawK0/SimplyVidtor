@@ -561,6 +561,41 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testTransformKeyframesMakeAZoom() throws {
+        createProject()
+        tapTool("editor.tool.transform")
+        let toggle = app.buttons["editor.keyframe.toggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 2))
+        toggle.tap()
+        let clip = app.descendants(matching: .any)["timeline.clip.0"]
+        expectation(for: NSPredicate(format: "value ENDSWITH '1 keyframes'"), evaluatedWith: clip)
+        waitForExpectations(timeout: 3)
+        XCTAssertTrue(toggle.isSelected, "The playhead is on the new keyframe")
+
+        // Later in the clip, changing the scale adds a second keyframe.
+        let ruler = app.descendants(matching: .any)["timeline.ruler"].firstMatch
+        let timeline = app.descendants(matching: .any)["editor.timeline"].frame
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: timeline.midX + 120, dy: ruler.frame.midY))
+            .tap()
+        let timecode = app.staticTexts["editor.timecode"]
+        expectation(for: NSPredicate(format: "NOT (label BEGINSWITH '00:00.0')"), evaluatedWith: timecode)
+        waitForExpectations(timeout: 3)
+        XCTAssertFalse(toggle.isSelected)
+        let scale = app.descendants(matching: .any)["editor.transform.scale"]
+        let thumb = scale.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        thumb.press(forDuration: 0.05, thenDragTo: thumb.withOffset(CGVector(dx: 40, dy: 0)))
+        expectation(for: NSPredicate(format: "value ENDSWITH '2 keyframes'"), evaluatedWith: clip)
+        waitForExpectations(timeout: 3)
+
+        // Previous jumps back to the first keyframe.
+        app.buttons["editor.keyframe.previous"].tap()
+        expectation(for: NSPredicate(format: "label BEGINSWITH '00:00.0'"), evaluatedWith: timecode)
+        waitForExpectations(timeout: 3)
+        XCTAssertTrue(app.buttons["editor.keyframe.easing"].waitForExistence(timeout: 2), "Easing to the next keyframe")
+    }
+
+    @MainActor
     func testTappingRulerMovesPlayhead() throws {
         createProject()
         let timecode = app.staticTexts["editor.timecode"]

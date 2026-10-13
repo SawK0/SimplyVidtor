@@ -110,6 +110,15 @@ struct TimelineTracksView: View {
                     )
                 }
             }
+            // Above the selection frame, so a keyframe at the clip's edge shows.
+            .overlay(alignment: .bottom) {
+                if !clip.transformKeyframes.isEmpty {
+                    KeyframeMarks(offsets: clip.transformKeyframes.times
+                        .filter { $0 >= clip.sourceStart - 0.001 && $0 <= clip.sourceEnd + 0.001 }
+                        .map { metrics.width(of: ($0 - clip.sourceStart) / clip.speed) })
+                        .frame(height: Theme.Size.keyframeMark * 2)
+                }
+            }
             .offset(x: displayOffset(for: clip, at: index, width: width))
             .scaleEffect(isReordering ? 1.06 : 1)
             .shadow(color: isReordering ? Theme.Palette.shadow : .clear, radius: 8)
@@ -169,7 +178,9 @@ struct TimelineTracksView: View {
     private func accessibilityValue(for clip: Clip) -> String {
         let kind = clip.kind == .photo ? String(localized: "Photo") : String(localized: "Video")
         let seconds = clip.duration.formatted(.number.precision(.fractionLength(1)))
-        return String(localized: "\(kind), \(seconds) seconds")
+        let value = String(localized: "\(kind), \(seconds) seconds")
+        let keyframes = clip.transformKeyframes.keyframes.count
+        return keyframes == 0 ? value : String(localized: "\(value), \(keyframes) keyframes")
     }
 
     private func textLabel(_ item: TextItem, index: Int) -> String {

@@ -127,7 +127,8 @@ struct TextOverlayLayer: View {
               let index = session.timeline.index(ofClip: clip.id),
               session.timeline.timeRange(ofClipAt: index).contains(session.currentTime) || session.timeline.clips.count == 1
         else { return }
-        let start = clipGestureStart ?? clip.transform
+        let source = session.selectedClipSourceTime
+        let start = clipGestureStart ?? clip.transform(atSource: source ?? clip.sourceStart)
         clipGestureStart = start
         var transform = start
         if let drag = value.first?.first, video.width > 0, video.height > 0 {
@@ -141,6 +142,6 @@ struct TextOverlayLayer: View {
             transform.rotation = start.rotation + rotate.rotation.radians
         }
         session.beginInteractiveEdit()
-        session.updateInteractiveEdit { $0.setTransform(transform, ofClip: clip.id) }
+        session.updateInteractiveEdit { $0.setTransform(transform, ofClip: clip.id, atSource: source) }
     }
 }
