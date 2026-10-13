@@ -126,4 +126,19 @@ struct MotionTests {
         let old = try JSONDecoder().decode(TextItem.self, from: JSONSerialization.data(withJSONObject: json))
         #expect(old.motion.isEmpty)
     }
+    @Test func typewriterRevealsCharactersInTurn() {
+        let typed = AppliedMotion(MotionPresets.typewriter, role: .entrance)
+        let visible = (0..<5).map { typed.state(at: 0.5, role: .entrance, character: ($0, 5)).opacity }
+        #expect(visible == [1, 1, 1, 0, 0])
+        #expect(typed.state(at: 0.5, role: .entrance).isIdentity, "Per-character animations leave the whole item alone")
+    }
+
+    @Test func wholeItemAnimationsIgnoreCharacters() {
+        var motion = TextMotion()
+        motion[.entrance] = AppliedMotion(MotionPresets.fade, role: .entrance)
+        #expect(!motion.animatesCharacters(at: 0.1, duration: 3))
+        #expect(motion.characterState(at: 0.1, duration: 3, index: 0, count: 3).isIdentity)
+        motion[.loop] = AppliedMotion(MotionPresets.wave, role: .loop)
+        #expect(motion.animatesCharacters(at: 1.5, duration: 3))
+    }
 }

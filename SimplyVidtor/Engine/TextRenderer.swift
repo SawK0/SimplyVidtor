@@ -19,7 +19,9 @@ nonisolated enum TextRenderer {
         return CGSize(width: (text.width + padding * 2).rounded(.up), height: (text.height + padding * 2).rounded(.up))
     }
 
-    static func image(for item: TextItem, canvas: CGSize) -> CGImage? {
+    /// `characters` gives each character's motion (index, count) for
+    /// per-character animations; offsets are fractions of the canvas's shorter side.
+    static func image(for item: TextItem, canvas: CGSize, characters: ((Int, Int) -> MotionState)? = nil) -> CGImage? {
         var item = item
         if item.isSticker { item.background = .none }
         let fontSize = max(item.size * min(canvas.width, canvas.height), 1)
@@ -48,18 +50,77 @@ nonisolated enum TextRenderer {
                                    cornerWidth: fontSize * 0.25, cornerHeight: fontSize * 0.25, transform: nil))
             context.fillPath()
         }
+        let glyphs = characters.map { state in
+            GlyphMotion(text: item.text, unit: min(canvas.width, canvas.height), center: fontSize * 0.35, state: state)
+        }
         if item.background == .outline {
             let stroke = attributed(item.text, font: font, color: contrastColor(for: item.color), strokeWidth: 16)
-            draw(stroke, in: textRect, context: context)
+            draw(stroke, in: textRect, context: context, glyphs: glyphs)
         }
-        draw(fill, in: textRect, context: context)
+        draw(fill, in: textRect, context: context, glyphs: glyphs)
         return context.makeImage()
     }
 
-    private static func draw(_ string: NSAttributedString, in rect: CGRect, context: CGContext) {
+    /// Per-character motion: maps UTF-16 offsets to character indices.
+    private struct GlyphMotion {
+        let starts: [Int]
+        let unit: CGFloat
+        /// Height of a glyph's middle above the baseline.
+        let center: CGFloat
+        let state: (Int, Int) -> MotionState
+
+        init(text: String, unit: CGFloat, center: CGFloat, state: @escaping (Int, Int) -> MotionState) {
+            starts = text.indices.map { $0.utf16Offset(in: text) }
+            self.unit = unit
+            self.center = center
+            self.state = state
+        }
+
+        func state(atUTF16 offset: Int) -> MotionState {
+            let index = (starts.lastIndex { $0 <= offset }) ?? 0
+            return state(index, starts.count)
+        }
+    }
+
+    private static func draw(_ string: NSAttributedString, in rect: CGRect, context: CGContext, glyphs: GlyphMotion? = nil) {
         let framesetter = CTFramesetterCreateWithAttributedString(string)
         let frame = CTFramesetterCreateFrame(framesetter, CFRange(), CGPath(rect: rect, transform: nil), nil)
-        CTFrameDraw(frame, context)
+        guard let glyphs else {
+            CTFrameDraw(frame, context)
+            return
+        }
+        let lines = CTFrameGetLines(frame) as? [CTLine] ?? []
+        var origins = [CGPoint](repeating: .zero, count: lines.count)
+        CTFrameGetLineOrigins(frame, CFRange(), &origins)
+        context.textMatrix = .identity
+        for (line, origin) in zip(lines, origins) {
+            let lineOrigin = CGPoint(x: rect.minX + origin.x, y: rect.minY + origin.y)
+            for run in CTLineGetGlyphRuns(line) as? [CTRun] ?? [] {
+                let count = CTRunGetGlyphCount(run)
+                var positions = [CGPoint](repeating: .zero, count: count)
+                var advances = [CGSize](repeating: .zero, count: count)
+                var indices = [CFIndex](repeating: 0, count: count)
+                CTRunGetPositions(run, CFRange(), &positions)
+                CTRunGetAdvances(run, CFRange(), &advances)
+                CTRunGetStringIndices(run, CFRange(), &indices)
+                for glyph in 0..<count {
+                    let state = glyphs.state(atUTF16: indices[glyph])
+                    guard state.opacity > 0.001, state.scale > 0 else { continue }
+                    let center = CGPoint(x: lineOrigin.x + positions[glyph].x + advances[glyph].width / 2,
+                                         y: lineOrigin.y + positions[glyph].y + glyphs.center)
+                    context.saveGState()
+                    context.setAlpha(state.opacity)
+                    // Core Graphics' y axis points up; offsets and rotation are screen-space.
+                    context.translateBy(x: center.x + state.offsetX * glyphs.unit, y: center.y - state.offsetY * glyphs.unit)
+                    context.rotate(by: -state.rotation)
+                    context.scaleBy(x: state.scale, y: state.scale)
+                    context.translateBy(x: -center.x, y: -center.y)
+                    context.textPosition = lineOrigin
+                    CTRunDraw(run, context, CFRange(location: glyph, length: 1))
+                    context.restoreGState()
+                }
+            }
+        }
     }
 
     private static func attributed(_ text: String, font: CTFont, color: CGColor, strokeWidth: Double? = nil) -> NSAttributedString {

@@ -129,8 +129,9 @@ nonisolated class VideoCompositor: NSObject, AVVideoCompositing, @unchecked Send
         let time = request.compositionTime.seconds
         let unit = min(renderSize.width, renderSize.height)
         return live.textItems.filter { $0.isVisible(at: time) }.reduce(frame) { frame, item in
-            guard let image = textImage(for: item) else { return frame }
-            let motion = item.motion.state(at: time - item.timelineStart, duration: item.duration)
+            let local = time - item.timelineStart
+            guard let image = textImage(for: item, at: local) else { return frame }
+            let motion = item.motion.state(at: local, duration: item.duration)
             guard motion.opacity > 0, motion.scale > 0, motion.reveal > 0 else { return frame }
             let source = CIImage(cgImage: image)
             let extent = source.extent
@@ -169,7 +170,13 @@ nonisolated class VideoCompositor: NSObject, AVVideoCompositing, @unchecked Send
         return image.cropped(to: rect)
     }
 
-    private func textImage(for item: TextItem) -> CGImage? {
+    /// Cached unless characters are moving separately at `local` seconds into the item.
+    private func textImage(for item: TextItem, at local: Double) -> CGImage? {
+        if item.motion.animatesCharacters(at: local, duration: item.duration) {
+            return TextRenderer.image(for: item, canvas: renderSize) { index, count in
+                item.motion.characterState(at: local, duration: item.duration, index: index, count: count)
+            }
+        }
         let key = "\(item.text)|\(item.font)|\(item.color)|\(item.background)|\(item.size)|\(renderSize)" as NSString
         if let cached = texts.object(forKey: key) { return cached }
         guard let image = TextRenderer.image(for: item, canvas: renderSize) else { return nil }

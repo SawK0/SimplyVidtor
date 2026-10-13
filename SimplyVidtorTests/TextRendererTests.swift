@@ -42,4 +42,39 @@ struct TextRendererTests {
         context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
         #expect(pixel[3] == 0)
     }
+    /// Alpha summed over the left and right halves.
+    private func ink(_ image: CGImage) -> (left: Int, right: Int) {
+        let width = image.width, height = image.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let context = CGContext(data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+                                space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        var left = 0, right = 0
+        for y in 0..<height {
+            for x in 0..<width {
+                let alpha = Int(pixels[(y * width + x) * 4 + 3])
+                if x < width / 2 { left += alpha } else { right += alpha }
+            }
+        }
+        return (left, right)
+    }
+
+    @Test func perCharacterDrawingAtRestMatchesWholeText() throws {
+        let item = TextItem(text: "Hello", timelineStart: 0)
+        let whole = ink(try #require(TextRenderer.image(for: item, canvas: canvas)))
+        let glyphs = ink(try #require(TextRenderer.image(for: item, canvas: canvas) { _, _ in .identity }))
+        #expect(abs(glyphs.left - whole.left) < whole.left / 50)
+        #expect(abs(glyphs.right - whole.right) < whole.right / 50)
+    }
+
+    @Test func typewriterShowsOnlyTheFirstCharacters() throws {
+        let item = TextItem(text: "MMMMMM", timelineStart: 0)
+        let typed = AppliedMotion(MotionPresets.typewriter, role: .entrance)
+        let image = try #require(TextRenderer.image(for: item, canvas: canvas) { index, count in
+            typed.state(at: 0.4, role: .entrance, character: (index, count))
+        })
+        let halves = ink(image)
+        #expect(halves.left > 0)
+        #expect(halves.right == 0, "Characters past the cursor are hidden")
+    }
 }

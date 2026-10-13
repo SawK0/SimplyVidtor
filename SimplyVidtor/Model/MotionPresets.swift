@@ -80,5 +80,30 @@ nonisolated enum MotionPresets {
         hasStrength: false, defaultDuration: 2
     )
 
-    static let all = [fade, slide, pop, bounce, spin, wipe, zoom, pulse, float, hop, wiggle, spinLoop]
+    static let typewriter = MotionAnimation(
+        id: "builtin.typewriter", name: "Typewriter", roles: [.entrance, .exit],
+        keyframes: [K(time: 0, opacity: 0), K(time: 1)],
+        characterSpread: 1, defaultDuration: 1.2
+    )
+
+    static let cascade = MotionAnimation(
+        id: "builtin.cascade", name: "Cascade", roles: [.entrance, .exit],
+        keyframes: [K(time: 0, opacity: 0, offsetY: 0.08, easing: .snappy), K(time: 1)],
+        isDirectional: true, characterSpread: 0.6, defaultDuration: 1
+    )
+
+    static let jump = MotionAnimation(
+        id: "builtin.jump", name: "Jump", roles: [.entrance, .exit],
+        keyframes: [K(time: 0, opacity: 0, scale: 0, easing: .back), K(time: 1)],
+        characterSpread: 0.7, defaultDuration: 1
+    )
+
+    static let wave = MotionAnimation(
+        id: "builtin.wave", name: "Wave", roles: [.loop],
+        keyframes: [K(time: 0, easing: .easeOut), K(time: 0.5, offsetY: -0.04, easing: .easeIn), K(time: 1)],
+        characterSpread: 0.5, defaultDuration: 1.5
+    )
+
+    static let all = [fade, slide, pop, bounce, spin, wipe, zoom, typewriter, cascade, jump,
+                      pulse, float, hop, wiggle, spinLoop, wave]
 }
