@@ -34,8 +34,9 @@ struct StickerPanel: View {
                 .frame(maxHeight: Theme.Size.minTapTarget * 2.5)
 
                 if let sticker {
-                    HStack(spacing: Theme.Spacing.sm) {
-                        ValueSlider(value: sizeBinding(for: sticker), range: TextItem.sizeRange)
+                    HStack(spacing: Theme.Spacing.xs) {
+                        TextKeyframeControls(session: session, item: sticker)
+                        ValueSlider(value: session.sizeBinding(for: sticker), range: TextItem.sizeRange)
                             .accessibilityLabel("Sticker size")
                             .accessibilityIdentifier("editor.sticker.size")
                         AnimateButton(action: onAnimate)
@@ -63,17 +64,6 @@ struct StickerPanel: View {
             session.editText(new)
             session.selectText(new.id)
         }
-    }
-
-    private func sizeBinding(for sticker: TextItem) -> Binding<Double> {
-        Binding(
-            get: { sticker.size },
-            set: { size in
-                var changed = sticker
-                changed.size = size
-                session.editText(changed)
-            }
-        )
     }
 
     private func delete(_ sticker: TextItem) {

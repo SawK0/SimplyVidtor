@@ -149,7 +149,7 @@ Chunk 5: history
 - [x] Keyframe model shared by clips, text and stickers (`KeyframeTrack`): values at times, eased between. Clip keyframes are in source time, so trims, splits and speed changes keep them on the same frames; the compositor blends the transform every frame
 - [x] Transform panel: add or remove a keyframe at the playhead (◆), jump to the previous or next one, easing between keyframes. Once a clip has keyframes, slider and preview-gesture changes set the keyframe at the playhead
 - [x] Keyframe diamonds on timeline clips; the compositor interpolates every frame (preview and export)
-- [ ] Text and sticker keyframes (position, size, rotation), combined with their In / Out / Loop animations
+- [x] Text and sticker keyframes (position, size, rotation; times from the item's start, kept in place when its start is trimmed), combined with their In / Out / Loop animations. Keyframe controls sit next to the size slider in the Text and Stickers panels
 
 ### M9: Layers
 - [ ] Track model: the main video track plus any number of overlay video, text and audio tracks; higher tracks draw on top

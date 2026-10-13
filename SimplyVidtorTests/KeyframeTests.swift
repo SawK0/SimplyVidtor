@@ -92,4 +92,29 @@ struct KeyframeTests {
         keyed.transformKeyframes = zoom()
         #expect(try JSONDecoder().decode(Clip.self, from: JSONEncoder().encode(keyed)) == keyed)
     }
+
+    @Test func textKeyframesMoveTheItemAndStayPutWhenTrimmed() {
+        var item = TextItem(text: "Hi", timelineStart: 2, duration: 4)
+        item = item.togglingKeyframe(at: 2)
+        item = item.setting(TextPlacement(x: 0.9, y: 0.5, size: 0.08, rotation: 0), at: 4)
+        #expect(item.keyframes.times == [0, 2])
+        #expect(abs(item.placement(at: 3).x - 0.7) < 1e-9)
+        #expect(item.placed(at: 4).x == 0.9)
+        #expect(item.x == 0.5, "Static placement is untouched")
+
+        let trimmed = item.trimmingStart(to: 3)
+        #expect(abs(trimmed.placement(at: 3.5).x - item.placement(at: 3.5).x) < 1e-9, "Same motion on the timeline")
+
+        let cleared = item.togglingKeyframe(at: 2).togglingKeyframe(at: 4)
+        #expect(cleared.keyframes.isEmpty && cleared.x == 0.9)
+    }
+
+    @Test func textPlacementIsClampedAndTextDecodesWithoutKeyframes() throws {
+        let item = TextItem(text: "Hi", timelineStart: 0).setting(TextPlacement(x: 2, y: -1, size: 9, rotation: 0), at: 0)
+        #expect(item.x == 1 && item.y == 0 && item.size == TextItem.sizeRange.upperBound)
+
+        var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(item)) as! [String: Any]
+        json["keyframes"] = nil
+        #expect(try JSONDecoder().decode(TextItem.self, from: JSONSerialization.data(withJSONObject: json)).keyframes.isEmpty)
+    }
 }

@@ -596,6 +596,35 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testStickerKeyframes() throws {
+        createProject()
+        tapTool("editor.tool.sticker")
+        let fire = app.buttons["editor.sticker.11"]
+        XCTAssertTrue(fire.waitForExistence(timeout: 2))
+        fire.tap()
+        let toggle = app.buttons["editor.keyframe.toggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 2))
+        toggle.tap()
+        XCTAssertTrue(toggle.isSelected)
+
+        // Later, resizing adds a second keyframe.
+        let ruler = app.descendants(matching: .any)["timeline.ruler"].firstMatch
+        let timeline = app.descendants(matching: .any)["editor.timeline"].frame
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: timeline.midX + 80, dy: ruler.frame.midY))
+            .tap()
+        expectation(for: NSPredicate(format: "isSelected == false"), evaluatedWith: toggle)
+        waitForExpectations(timeout: 3)
+        let size = app.descendants(matching: .any)["editor.sticker.size"]
+        let thumb = size.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5))
+        thumb.press(forDuration: 0.05, thenDragTo: thumb.withOffset(CGVector(dx: 50, dy: 0)))
+
+        app.buttons["editor.panel.done"].tap()
+        let item = app.descendants(matching: .any)["timeline.text.0"]
+        XCTAssertTrue(item.label.hasSuffix("2 keyframes"), "Got \(item.label)")
+    }
+
+    @MainActor
     func testTappingRulerMovesPlayhead() throws {
         createProject()
         let timecode = app.staticTexts["editor.timecode"]

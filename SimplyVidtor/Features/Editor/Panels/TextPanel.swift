@@ -110,9 +110,13 @@ struct TextPanel: View {
                 .accessibilityIdentifier("editor.text.delete")
             }
 
-            ValueSlider(value: binding(\.size), range: TextItem.sizeRange)
-                .accessibilityLabel("Text size")
-                .accessibilityIdentifier("editor.text.size")
+            HStack(spacing: Theme.Spacing.xs) {
+                TextKeyframeControls(session: session, item: item)
+                    .disabled(isEmpty)
+                ValueSlider(value: session.sizeBinding(for: item), range: TextItem.sizeRange)
+                    .accessibilityLabel("Text size")
+                    .accessibilityIdentifier("editor.text.size")
+            }
         }
     }
 

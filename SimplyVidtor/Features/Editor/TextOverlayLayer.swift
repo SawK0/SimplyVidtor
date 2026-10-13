@@ -16,7 +16,7 @@ struct TextOverlayLayer: View {
             ZStack(alignment: .topLeading) {
                 Color.clear
                 if let item = session.selectedText, item.isVisible(at: session.currentTime) {
-                    selectionFrame(for: item, in: video)
+                    selectionFrame(for: item.placed(at: session.currentTime), in: video)
                 }
             }
             .contentShape(.rect)
@@ -72,7 +72,8 @@ struct TextOverlayLayer: View {
 
     private func tapped(at location: CGPoint, in video: CGRect) {
         let hit = session.timeline.textItems.last { item in
-            item.isVisible(at: session.currentTime) && box(for: item, in: video).insetBy(dx: -8, dy: -8).contains(location)
+            item.isVisible(at: session.currentTime)
+                && box(for: item.placed(at: session.currentTime), in: video).insetBy(dx: -8, dy: -8).contains(location)
         }
         if let hit {
             session.selectText(hit.id)
@@ -92,20 +93,20 @@ struct TextOverlayLayer: View {
                     transformClip(value, in: video)
                     return
                 }
-                let start = gestureStart ?? current
+                let start = gestureStart ?? current.placed(at: session.currentTime)
                 gestureStart = start
-                var item = start
+                var placement = start.placement
                 if let drag = value.first?.first, video.width > 0, video.height > 0 {
-                    item.x = start.x + drag.translation.width / video.width
-                    item.y = start.y + drag.translation.height / video.height
+                    placement.x = start.x + drag.translation.width / video.width
+                    placement.y = start.y + drag.translation.height / video.height
                 }
                 if let magnify = value.first?.second {
-                    item.size = start.size * magnify.magnification
+                    placement.size = start.size * magnify.magnification
                 }
                 if let rotate = value.second {
-                    item.rotation = start.rotation + rotate.rotation.radians
+                    placement.rotation = start.rotation + rotate.rotation.radians
                 }
-                session.editText(item, byDrag: true)
+                session.editText(current.setting(placement, at: session.currentTime), byDrag: true)
             }
             .onEnded { _ in
                 if clipGestureStart != nil {

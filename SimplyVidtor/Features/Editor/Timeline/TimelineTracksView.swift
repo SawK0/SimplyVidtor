@@ -185,7 +185,9 @@ struct TimelineTracksView: View {
 
     private func textLabel(_ item: TextItem, index: Int) -> String {
         let name = item.isSticker ? String(localized: "Sticker \(index + 1)") : String(localized: "Text \(index + 1)")
-        return item.motion.isEmpty ? name : String(localized: "\(name), animated")
+        var label = item.motion.isEmpty ? name : String(localized: "\(name), animated")
+        if !item.keyframes.isEmpty { label += String(localized: ", \(item.keyframes.keyframes.count) keyframes") }
+        return label
     }
 
     private var textTrack: some View {
@@ -207,6 +209,14 @@ struct TimelineTracksView: View {
                     .frame(width: metrics.width(of: item.duration), alignment: .leading)
                     .frame(maxHeight: .infinity)
                     .background(Theme.Palette.trackText, in: .rect(cornerRadius: Theme.Radius.clip))
+                    .overlay(alignment: .bottom) {
+                        if !item.keyframes.isEmpty {
+                            KeyframeMarks(offsets: item.keyframes.times
+                                .filter { $0 >= -0.001 && $0 <= item.duration + 0.001 }
+                                .map { metrics.width(of: $0) })
+                                .frame(height: Theme.Size.keyframeMark)
+                        }
+                    }
                     .overlay {
                         if isSelected {
                             SelectionFrame(

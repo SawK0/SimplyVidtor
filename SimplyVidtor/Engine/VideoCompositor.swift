@@ -139,7 +139,7 @@ nonisolated class VideoCompositor: NSObject, AVVideoCompositing, @unchecked Send
         guard let live = (request.videoCompositionInstruction as? ClipInstruction)?.live else { return frame }
         let time = request.compositionTime.seconds
         let unit = min(renderSize.width, renderSize.height)
-        return live.textItems.filter { $0.isVisible(at: time) }.reduce(frame) { frame, item in
+        return live.textItems.filter { $0.isVisible(at: time) }.map { $0.placed(at: time) }.reduce(frame) { frame, item in
             let local = time - item.timelineStart
             guard let image = textImage(for: item, at: local) else { return frame }
             let motion = item.motion.state(at: local, duration: item.duration)

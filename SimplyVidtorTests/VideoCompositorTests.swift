@@ -179,6 +179,21 @@ struct VideoCompositorTests {
         #expect(end.r < 30, "Slid right by the end, got \(end)")
     }
 
+    @Test func textKeyframesMoveTheText() async throws {
+        var timeline = Timeline(clips: [try photoClip()])
+        var item = TextItem(text: "    ", timelineStart: 0, duration: 3, size: 0.15, color: 0x0000FF, background: .box)
+        item.keyframes = KeyframeTrack([
+            Keyframe(time: 0, value: TextPlacement(x: 0.5, y: 0.5, size: 0.15, rotation: 0)),
+            Keyframe(time: 2, value: TextPlacement(x: 0.5, y: 0.9, size: 0.15, rotation: 0)),
+        ])
+        timeline.textItems = [item]
+        let output = try await CompositionBuilder.build(timeline, store: store)
+        let start = TestMedia.centerColor(of: try await frame(of: output, at: 0.1))
+        let end = TestMedia.centerColor(of: try await frame(of: output, at: 2.5))
+        #expect(start.b > 200, "Box in the centre at first, got \(start)")
+        #expect(end.r > 230, "Box moved down by the end, got \(end)")
+    }
+
     @Test func liveTextChangesShowWithoutRebuilding() async throws {
         let live = LiveStore()
         let output = try await CompositionBuilder.build(Timeline(clips: [try photoClip()]), store: store, live: live)

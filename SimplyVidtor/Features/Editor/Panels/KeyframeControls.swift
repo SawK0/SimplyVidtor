@@ -94,3 +94,42 @@ struct KeyframeMarks: View {
         .background(Theme.Palette.bgSurface)
         .preferredColorScheme(.dark)
 }
+
+/// Keyframe controls for a text item or sticker, inside a panel that holds an edit open.
+struct TextKeyframeControls: View {
+    let session: EditorSession
+    let item: TextItem
+
+    var body: some View {
+        let time = session.currentTime
+        let local = time - item.timelineStart
+        let onKeyframe = item.keyframes.index(near: local, tolerance: KeyframeControls.tolerance)
+        KeyframeControls(
+            times: item.keyframes.times.map { $0 + item.timelineStart },
+            playhead: time,
+            isEnabled: time >= item.timelineStart && time <= item.timelineEnd,
+            easing: onKeyframe.map { item.keyframes.keyframes[$0].easing },
+            onToggle: { session.editText(item.togglingKeyframe(at: time)) },
+            onJump: { target in Task { await session.seek(to: target) } },
+            onEasing: { easing in
+                var changed = item
+                changed.keyframes.setEasing(easing, near: local, tolerance: KeyframeControls.tolerance)
+                session.editText(changed)
+            }
+        )
+    }
+}
+
+extension EditorSession {
+    /// The item's size at the playhead; setting it keyframes the size when the item has keyframes.
+    func sizeBinding(for item: TextItem) -> Binding<Double> {
+        Binding(
+            get: { item.placement(at: self.currentTime).size },
+            set: { size in
+                var placement = item.placement(at: self.currentTime)
+                placement.size = size
+                self.editText(item.setting(placement, at: self.currentTime))
+            }
+        )
+    }
+}
