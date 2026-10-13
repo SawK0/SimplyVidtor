@@ -58,7 +58,7 @@ struct CompositionBuilderTests {
         let audioTracks = output.composition.tracks(withMediaType: .audio)
         #expect(audioTracks.count == 2)
         #expect(output.audioMix.inputParameters.count == 2)
-        #expect(abs(seconds(output.composition) - 2) < 0.02, "Audio is cut at the video's end")
+        #expect(abs(seconds(output.composition) - 3) < 0.02, "Runs to the audio's end")
     }
 
     @Test func missingAudioFileIsSkipped() async throws {
@@ -120,11 +120,13 @@ struct CompositionBuilderTests {
         #expect(output.audioMix.inputParameters.isEmpty)
     }
 
-    @Test func audioStartingAfterTheVideoIsLeftOut() async throws {
+    @Test func audioStartingAfterTheVideoStillPlays() async throws {
         var item = try toneItem()
         item.timelineStart = 5
         let output = try await CompositionBuilder.build(Timeline(clips: [try sampleClip()], audioItems: [item]), store: store)
-        #expect(output.composition.tracks(withMediaType: .audio).isEmpty)
-        #expect(abs(seconds(output.composition) - 2) < 0.02)
+        #expect(output.composition.tracks(withMediaType: .audio).count == 1)
+        #expect(abs(seconds(output.composition) - 7) < 0.02)
+        let video = try #require(output.composition.tracks(withMediaType: .video).first)
+        #expect(abs(video.timeRange.end.seconds - 7) < 0.02, "Black fills the video track to the end")
     }
 }

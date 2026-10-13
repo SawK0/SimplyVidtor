@@ -14,7 +14,14 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         set { format.aspectRatio = newValue }
     }
 
+    /// The project runs until its last clip, audio or text ends.
     var duration: Double {
+        let overlayEnds = audioItems.map(\.timelineEnd) + textItems.map(\.timelineEnd)
+        return max(videoDuration, overlayEnds.max() ?? 0)
+    }
+
+    /// The end of the last clip. Past it the frame is black.
+    var videoDuration: Double {
         startTime(ofClipAt: clips.count)
     }
 
@@ -42,7 +49,7 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
     /// The clip playing at `time`. A boundary (or overlap) belongs to the clip
     /// that starts there; the very end belongs to the last clip.
     func clipIndex(at time: Double) -> Int? {
-        guard !clips.isEmpty, time >= 0, time <= duration else { return nil }
+        guard !clips.isEmpty, time >= 0, time <= videoDuration else { return nil }
         for index in clips.indices.dropLast() where time < startTime(ofClipAt: index + 1) {
             return index
         }

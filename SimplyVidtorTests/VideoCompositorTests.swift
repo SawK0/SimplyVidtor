@@ -153,6 +153,19 @@ struct VideoCompositorTests {
         #expect(VideoCompositor.revealed(image, state).extent == CGRect(x: 0, y: 0, width: 100, height: 10))
     }
 
+    @Test func textPastTheLastClipShowsOnBlack() async throws {
+        var timeline = Timeline(clips: [try photoClip()])
+        let end = timeline.videoDuration
+        timeline.textItems = [TextItem(text: "            ", timelineStart: end, duration: 2, size: 0.3, color: 0x0000FF, background: .box)]
+        let output = try await CompositionBuilder.build(timeline, store: store)
+        #expect(abs(output.composition.duration.seconds - (end + 2)) < 0.02)
+        let image = try await frame(of: output, at: end + 1)
+        let box = TestMedia.centerColor(of: image)
+        let corner = TestMedia.color(of: image, x: 2, y: 2)
+        #expect(box.b > 200 && box.r < 50, "Text still shows, got \(box)")
+        #expect(corner.r < 20 && corner.g < 20 && corner.b < 20, "Black past the clip, got \(corner)")
+    }
+
     @Test func liveTextChangesShowWithoutRebuilding() async throws {
         let live = LiveStore()
         let output = try await CompositionBuilder.build(Timeline(clips: [try photoClip()]), store: store, live: live)
@@ -259,7 +272,8 @@ struct VideoCompositorTests {
             #expect(a.end == b.start)
         }
         #expect(ranges.last?.end == output.composition.duration)
-        #expect(abs(output.composition.duration.seconds - timeline.duration) < 0.02, "Audio is cut at the video's end")
+        #expect(abs(output.composition.duration.seconds - timeline.duration) < 0.02, "Runs to the audio's end")
+        #expect(timeline.duration > timeline.videoDuration)
     }
 
     @Test(arguments: [

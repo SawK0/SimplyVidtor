@@ -108,9 +108,7 @@ nonisolated enum CompositionBuilder {
 
         var mixParameters = tracks.mixParameters
         for item in timeline.audioItems {
-            // Audio stops at the video's end; the item keeps its full length for later.
-            guard let item = item.cut(at: timeline.duration),
-                  let source = try await loadTracks(of: store.url(for: item.mediaFile)),
+            guard let source = try await loadTracks(of: store.url(for: item.mediaFile)),
                   let audio = source.audio,
                   let track = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
             else { continue }
@@ -119,8 +117,16 @@ nonisolated enum CompositionBuilder {
             mixParameters.append(volumeParameters(for: item, track: track))
         }
 
+        // Black under audio and text that run past the last clip.
+        let main = try tracks.video(0)
+        let end = time(timeline.duration)
+        if end > main.end {
+            try insertBlank(blank, into: main.track, range: CMTimeRange(start: main.end, end: end))
+            main.end = end
+        }
+
         // Instructions tile the whole composition: each clip alone, then its
-        // transition into the next, then blank under audio past the last clip.
+        // transition into the next, then black past the last clip.
         var instructions: [ClipInstruction] = []
         var cursor = CMTime.zero
         func add(until end: CMTime, _ layers: [ClipInstruction.Layer], transition: TransitionKind? = nil) {

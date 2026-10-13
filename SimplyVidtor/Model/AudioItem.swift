@@ -69,16 +69,6 @@ nonisolated struct AudioItem: Codable, Identifiable, Hashable, Sendable {
         return item.clampingFades()
     }
 
-    /// The part that plays before `end` (the video's end), with its fade-out
-    /// moved to the cut. `nil` if it starts at or after `end`.
-    func cut(at end: Double) -> AudioItem? {
-        guard timelineStart < end else { return nil }
-        guard timelineEnd > end else { return self }
-        var item = self
-        item.sourceDuration = end - timelineStart
-        return item.clampingFades()
-    }
-
     /// Volume and fades within their ranges.
     func clampingFades() -> AudioItem {
         var item = self

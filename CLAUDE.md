@@ -45,7 +45,7 @@ SimplyVidtor/
 
 - SwiftUI + `@Observable`; no Combine or `ObservableObject` in new code.
 - `Timeline` and its parts are value types. The editor mutates a copy and pushes snapshots for undo/redo.
-- Audio and text past the video's end are kept in the timeline but not played (`AudioItem.cut(at:)`); the project length is always the video's length.
+- The project runs until its last clip, audio or text ends (`Timeline.duration`); `videoDuration` is the end of the last clip. `CompositionBuilder` fills the main video track with black past the last clip.
 - Store derived values nowhere: clip timeline duration = `sourceDuration / speed`. Clips joined by a transition overlap (`Timeline.overlap(afterClipAt:)`), so always get clip positions from `Timeline.startTime(ofClipAt:)`, never by summing durations.
 - `Project` stores `Timeline` as JSON. Once v1 ships, new timeline fields must be optional (or use `decodeIfPresent`): synthesized `Codable` fails on missing keys, which would make old projects unreadable.
 - Normalized (0...1) coordinates for overlay positions and crop rects.

@@ -513,9 +513,9 @@ final class SimplyVidtorUITests: XCTestCase {
         let timeline = app.descendants(matching: .any)["editor.timeline"].frame
         let clip = app.descendants(matching: .any)["timeline.clip.0"].frame
         XCTAssertEqual(clip.minX, timeline.midX, accuracy: 4, "Clip row was pushed off screen")
-        // Audio past the video's end is cut: the project doesn't grow to the song's 60 s.
+        // The project runs to the song's end.
         let timecode = app.staticTexts["editor.timecode"].label
-        XCTAssertFalse(timecode.contains("/ 01:"), "Got \(timecode)")
+        XCTAssertTrue(timecode.hasSuffix("/ 01:00.0"), "Got \(timecode)")
     }
 
     @MainActor

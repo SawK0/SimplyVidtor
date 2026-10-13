@@ -145,7 +145,20 @@ Chunk 5: history
 - [x] Per-character text effects in the same format (`characterSpread`): Typewriter, Cascade, Jump (In / Out), Wave (Loop). `TextRenderer` draws each glyph with its own motion
 - [x] Store-ready pack ownership: packs with a `productID` import locked until the product is owned (`MotionLibrary.grant`, saved with the packs). Locked tiles still preview; StoreKit purchase and restore come later and call `grant` / `revoke`
 
-### M8: Polish
+### M8: Keyframes
+- [ ] Keyframe model shared by clips, text and stickers: values at times, eased between. Clip keyframes are anchored to the footage, so trims don't move them
+- [ ] Transform panel: add or remove a keyframe at the playhead (◆), jump to the previous or next one, easing between keyframes
+- [ ] Keyframe diamonds on timeline items; the compositor interpolates every frame (preview and export)
+- [ ] Text and sticker keyframes (position, size, rotation), combined with their In / Out / Loop animations
+
+### M9: Layers
+- [ ] Track model: the main video track plus any number of overlay video, text and audio tracks; higher tracks draw on top
+- [ ] Main track magnet: on (default) keeps clips back to back; off lets clips sit anywhere with gaps. Turning it back on closes gaps
+- [ ] Overlay clips (picture in picture) with their own transform, looks and keyframes; free placement in time on their track
+- [ ] Add track button, move items between tracks, timeline rows per track
+- [ ] Warn when more videos overlap than the device can decode at once
+
+### M10: Polish
 - [ ] Haptics on snap and selection
 - [ ] VoiceOver labels for every tool and timeline item
 - [ ] Performance pass: thumbnail cache, composition rebuild cost, memory on long projects

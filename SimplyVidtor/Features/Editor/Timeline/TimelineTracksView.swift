@@ -245,7 +245,6 @@ struct TimelineTracksView: View {
                 AudioWaveformView(
                     item: item,
                     width: metrics.width(of: item.sourceDuration),
-                    playedWidth: metrics.width(of: max(min(item.sourceDuration, timeline.duration - item.timelineStart), 0)),
                     store: store
                 )
                     .overlay {
@@ -450,12 +449,7 @@ struct EditorTimelineView: View {
         .accessibilityIdentifier("editor.timeline")
     }
 
-    /// The video plus any audio or text running past its end, so they can be reached.
-    private var contentDuration: Double {
-        let timeline = session.timeline
-        let overlayEnds = timeline.audioItems.map(\.timelineEnd) + timeline.textItems.map(\.timelineEnd)
-        return max(timeline.duration, overlayEnds.max() ?? 0)
-    }
+    private var contentDuration: Double { session.timeline.duration }
 
     /// Long-press a clip, then drag: other clips reflow as the finger passes their midpoints.
     private func reorder(_ state: UIGestureRecognizer.State, trackX: CGFloat) {
@@ -507,8 +501,6 @@ struct EditorTimelineView: View {
 private struct AudioWaveformView: View {
     let item: AudioItem
     let width: CGFloat
-    /// Audio past the video's end isn't played; it's drawn dimmed.
-    let playedWidth: CGFloat
     let store: MediaStore
 
     @State private var peaks: [Float] = []
@@ -541,11 +533,6 @@ private struct AudioWaveformView: View {
                 fades.addLine(to: CGPoint(x: size.width, y: size.height))
             }
             context.fill(fades, with: .color(Theme.Palette.scrim))
-
-            if playedWidth < size.width {
-                let cut = CGRect(x: playedWidth, y: 0, width: size.width - playedWidth, height: size.height)
-                context.fill(Path(cut), with: .color(Theme.Palette.scrim))
-            }
         }
         .overlay(alignment: .leading) {
             Image(systemName: "music.note")

@@ -441,13 +441,14 @@ struct TimelineTests {
         #expect(shorter.fadeIn == 1 && shorter.fadeOut == 1)
     }
 
-    @Test func audioCutAtVideoEndKeepsAFadeOut() throws {
-        var item = audio()   // plays 1 s to 5 s
-        item.fadeOut = 1
-        let cut = try #require(item.cut(at: 3))
-        #expect(cut.timelineEnd == 3 && cut.sourceStart == 2 && cut.fadeOut == 1)
-        #expect(item.cut(at: 9) == item)
-        #expect(item.cut(at: 1) == nil)
+    @Test func durationRunsToTheLongestItem() throws {
+        var timeline = Timeline(clips: [.photo(mediaFile: "p.heic")])   // 3 s of video
+        #expect(timeline.duration == timeline.videoDuration)
+        timeline.audioItems = [audio()]   // plays 1 s to 5 s
+        #expect(timeline.duration == 5)
+        timeline.textItems = [TextItem(text: "Late", timelineStart: 6, duration: 2)]
+        #expect(timeline.duration == 8)
+        #expect(timeline.clipIndex(at: 4) == nil, "No clip past the video's end")
     }
 
     @Test func legacyAspectRatioMigratesIntoFormat() throws {
