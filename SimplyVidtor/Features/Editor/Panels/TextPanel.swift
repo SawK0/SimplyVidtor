@@ -5,6 +5,7 @@ import SwiftUI
 /// one undo step on Done. An empty text is discarded.
 struct TextPanel: View {
     let session: EditorSession
+    let onAnimate: () -> Void
     let onDone: () -> Void
 
     /// The new item before it's first edited onto the timeline.
@@ -13,8 +14,9 @@ struct TextPanel: View {
     @FocusState private var isTyping: Bool
 
     /// Edits `session.selectedText`, or starts a new item with `id` at the playhead.
-    init(session: EditorSession, id: TextItem.ID, onDone: @escaping () -> Void) {
+    init(session: EditorSession, id: TextItem.ID, onAnimate: @escaping () -> Void = {}, onDone: @escaping () -> Void) {
         self.session = session
+        self.onAnimate = onAnimate
         self.onDone = onDone
         let existing = session.selectedText
         _isNew = State(initialValue: existing == nil)
@@ -97,6 +99,8 @@ struct TextPanel: View {
             HStack(spacing: Theme.Spacing.sm) {
                 SegmentedPicker(selection: binding(\.background), options: TextBackground.allCases) { Text(Self.title(of: $0)) }
                     .accessibilityIdentifier("editor.text.background")
+                AnimateButton(action: onAnimate)
+                    .disabled(isEmpty)
                 Button(role: .destructive, action: delete) {
                     Image(systemName: "trash")
                 }

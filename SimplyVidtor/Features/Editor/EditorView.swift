@@ -74,7 +74,7 @@ struct EditorView: View {
                 activeTool = item.isSticker ? .sticker : .text
             } else if id != nil {
                 activeTool = .text
-            } else if activeTool == .text || activeTool == .sticker {
+            } else if activeTool == .text || activeTool == .sticker || activeTool == .motion {
                 activeTool = nil
             }
         }
@@ -89,10 +89,10 @@ struct EditorView: View {
 
     /// Panels that replace the toolbar while open.
     private enum Tool {
-        case speed, volume, filters, adjust, crop, transform, transition, text, sticker, audio
+        case speed, volume, filters, adjust, crop, transform, transition, text, sticker, audio, motion
 
         /// Panels that act on the selected clip.
-        var isClipTool: Bool { ![.transition, .text, .sticker, .audio].contains(self) }
+        var isClipTool: Bool { ![.transition, .text, .sticker, .audio, .motion].contains(self) }
     }
 
     @ViewBuilder
@@ -108,14 +108,19 @@ struct EditorView: View {
         case .transition: TransitionPanel(session: session) { session.selectTransition(after: nil) }
         case .text:
             if let id = session.selectedTextID {
-                TextPanel(session: session, id: id) { session.selectText(nil) }
+                TextPanel(session: session, id: id, onAnimate: { activeTool = .motion }) { session.selectText(nil) }
                     .id(id)
             }
         case .audio: AudioPanel(session: session) { session.selectAudio(nil) }
         case .sticker:
-            StickerPanel(session: session) {
+            StickerPanel(session: session, onAnimate: { activeTool = .motion }) {
                 session.selectText(nil)
                 activeTool = nil
+            }
+        case .motion:
+            MotionPanel(session: session) {
+                guard let item = session.selectedText else { return activeTool = nil }
+                activeTool = item.isSticker ? .sticker : .text
             }
         }
     }

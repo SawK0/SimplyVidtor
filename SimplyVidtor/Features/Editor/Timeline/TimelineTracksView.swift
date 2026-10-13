@@ -172,13 +172,23 @@ struct TimelineTracksView: View {
         return String(localized: "\(kind), \(seconds) seconds")
     }
 
+    private func textLabel(_ item: TextItem, index: Int) -> String {
+        let name = item.isSticker ? String(localized: "Sticker \(index + 1)") : String(localized: "Text \(index + 1)")
+        return item.motion.isEmpty ? name : String(localized: "\(name), animated")
+    }
+
     private var textTrack: some View {
         ZStack(alignment: .leading) {
             Color.clear
             ForEach(Array(timeline.textItems.enumerated()), id: \.element.id) { index, item in
                 let isSelected = session.selectedTextID == item.id
-                Label(item.text, systemImage: item.isSticker ? "face.smiling" : "textformat")
-                    .labelStyle(.titleAndIcon)
+                HStack(spacing: Theme.Spacing.xxs) {
+                    Label(item.text, systemImage: item.isSticker ? "face.smiling" : "textformat")
+                        .labelStyle(.titleAndIcon)
+                    if !item.motion.isEmpty {
+                        Image(systemName: "sparkles")
+                    }
+                }
                     .font(Theme.Typography.caption)
                     .lineLimit(1)
                     .foregroundStyle(Theme.Palette.onAccent)
@@ -206,7 +216,7 @@ struct TimelineTracksView: View {
                     .offset(x: metrics.offset(for: item.timelineStart))
                     .onTapGesture { session.selectText(item.id) }
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(item.isSticker ? "Sticker \(index + 1)" : "Text \(index + 1)")
+                    .accessibilityLabel(textLabel(item, index: index))
                     .accessibilityValue(item.text)
                     .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
                     .accessibilityAction { session.selectText(item.id) }

@@ -36,6 +36,7 @@ final class EditorSession {
     @ObservationIgnored private var endObserver: (any NSObjectProtocol)?
     @ObservationIgnored private var isSeeking = false
     @ObservationIgnored private var pendingSeek: Double?
+    @ObservationIgnored private var previewTask: Task<Void, Never>?
     /// The timeline before the current drag; set while a trim or reorder is in progress.
     private var interactiveBase: Timeline?
     private var undoStack: [Timeline] = []
@@ -319,8 +320,27 @@ final class EditorSession {
     }
 
     func pause() {
+        previewTask?.cancel()
         player.pause()
         isPlaying = false
+    }
+
+    /// Plays `range` once, e.g. to show an animation after choosing it.
+    func playPreview(_ range: Range<Double>) {
+        pause()
+        guard range.upperBound > range.lowerBound else { return }
+        previewTask = Task {
+            await seek(to: range.lowerBound)
+            guard !Task.isCancelled else { return }
+            player.play()
+            isPlaying = true
+            try? await Task.sleep(for: .seconds(range.upperBound - range.lowerBound))
+            guard !Task.isCancelled, isPlaying else { return }
+            player.pause()
+            isPlaying = false
+            // Rest just inside the range, so the item is still visible.
+            await seek(to: max(range.upperBound - 0.02, range.lowerBound))
+        }
     }
 
     func seek(to seconds: Double) async {

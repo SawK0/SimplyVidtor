@@ -4,6 +4,7 @@ import SwiftUI
 /// the selected one. Everything commits as one undo step on Done.
 struct StickerPanel: View {
     let session: EditorSession
+    var onAnimate: () -> Void = {}
     let onDone: () -> Void
 
     private let columns = [GridItem(.adaptive(minimum: Theme.Size.minTapTarget), spacing: Theme.Spacing.xxs)]
@@ -37,6 +38,7 @@ struct StickerPanel: View {
                         ValueSlider(value: sizeBinding(for: sticker), range: TextItem.sizeRange)
                             .accessibilityLabel("Sticker size")
                             .accessibilityIdentifier("editor.sticker.size")
+                        AnimateButton(action: onAnimate)
                         Button(role: .destructive) { delete(sticker) } label: {
                             Image(systemName: "trash")
                         }
