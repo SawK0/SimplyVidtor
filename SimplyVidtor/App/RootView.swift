@@ -74,12 +74,23 @@ struct RootView: View {
         }
     }
 
-    /// `-seedMotionPack` imports the bundled sample pack, for UI tests.
+    /// `-seedMotionPack` imports the bundled sample pack, plus a locked paid
+    /// copy of it, for UI tests.
     private func seedMotionPackIfRequested() {
         guard ProcessInfo.processInfo.arguments.contains("-seedMotionPack"),
-              let url = Bundle.main.url(forResource: "sample-motion-pack", withExtension: "json")
+              let url = Bundle.main.url(forResource: "sample-motion-pack", withExtension: "json"),
+              let pack = try? motionLibrary?.importPack(from: url)
         else { return }
-        _ = try? motionLibrary?.importPack(from: url)
+        var paid = pack
+        paid.id = pack.id + "-pro"
+        paid.name = "Sample Pro"
+        paid.productID = "com.simplyvidtor.motion.samplepro"
+        paid.animations = pack.animations.map { animation in
+            var copy = animation
+            copy.id = animation.id.replacingOccurrences(of: pack.id, with: paid.id)
+            return copy
+        }
+        _ = try? motionLibrary?.importPack(paid)
     }
     #endif
 }

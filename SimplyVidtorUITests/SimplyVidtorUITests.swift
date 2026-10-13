@@ -449,6 +449,27 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testPaidPackIsLocked() throws {
+        createProject()
+        tapTool("editor.tool.sticker")
+        let fire = app.buttons["editor.sticker.11"]
+        XCTAssertTrue(fire.waitForExistence(timeout: 2))
+        fire.tap()
+        app.buttons["editor.animate"].tap()
+
+        // -seedMotionPack also adds a paid copy of the sample pack.
+        let drop = app.buttons["editor.motion.preset.com.simplyvidtor.sample-pro.drop"]
+        XCTAssertTrue(drop.waitForExistence(timeout: 2))
+        XCTAssertEqual(drop.value as? String, "Locked")
+        drop.tap()
+        let ok = app.buttons["OK"]
+        XCTAssertTrue(ok.waitForExistence(timeout: 2), "Explains the pack is paid")
+        ok.tap()
+        XCTAssertFalse(drop.isSelected)
+        XCTAssertTrue(app.buttons["editor.motion.none"].isSelected)
+    }
+
+    @MainActor
     func testEditAndDeleteAudioItem() throws {
         createProject()
         tapTool("editor.tool.audio")

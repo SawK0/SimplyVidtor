@@ -143,7 +143,7 @@ Chunk 5: history
 - [x] In / Out / Loop animations for text and stickers: Fade, Slide, Pop, Bounce, Spin, Wipe, Zoom (In / Out); Pulse, Float, Bounce, Wiggle, Spin (Loop); duration, easing, direction and strength. Animate panel opens from the text and sticker panels; choosing an animation plays it once
 - [x] Animation packs: one JSON file (id, version, author, thumbnail, animations; see `docs/motion-packs.md`), imported from Files in the Animate panel and validated (`MotionPack`, `MotionLibrary`). Long press a pack to remove it. Projects embed the animations they use, so they render even if a pack is removed
 - [x] Per-character text effects in the same format (`characterSpread`): Typewriter, Cascade, Jump (In / Out), Wave (Loop). `TextRenderer` draws each glyph with its own motion
-- [ ] Store-ready pack ownership (StoreKit later)
+- [x] Store-ready pack ownership: packs with a `productID` import locked until the product is owned (`MotionLibrary.grant`, saved with the packs). Locked tiles still preview; StoreKit purchase and restore come later and call `grant` / `revoke`
 
 ### M8: Polish
 - [ ] Haptics on snap and selection

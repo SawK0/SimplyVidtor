@@ -10,6 +10,7 @@ struct MotionPanel: View {
     @State private var role = MotionRole.entrance
     @State private var isImporting = false
     @State private var importError: String?
+    @State private var lockedPack: MotionPack?
     @Environment(MotionLibrary.self) private var library: MotionLibrary?
 
     private var item: TextItem? { session.selectedText }
@@ -32,6 +33,20 @@ struct MotionPanel: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(importError ?? "")
+        }
+        .alert(
+            "“\(lockedPack?.name ?? "")” Is a Paid Pack",
+            isPresented: Binding(get: { lockedPack != nil }, set: { if !$0 { lockedPack = nil } }),
+            presenting: lockedPack
+        ) { pack in
+            Button("OK", role: .cancel) {}
+            #if DEBUG
+            if let productID = pack.productID {
+                Button("Unlock for Testing") { library?.grant(productID) }
+            }
+            #endif
+        } message: { _ in
+            Text("Buying packs is coming soon. You can preview its animations here.")
         }
     }
 
@@ -64,11 +79,17 @@ struct MotionPanel: View {
                             if !pack.isBuiltIn {
                                 packLabel(pack)
                             }
+                            let isLocked = !(library?.isUnlocked(pack) ?? true)
                             ForEach(animations) { animation in
-                                tile(name: animation.name, isSelected: item.motion[role]?.animation.id == animation.id) {
+                                tile(name: animation.name, isSelected: item.motion[role]?.animation.id == animation.id,
+                                     isLocked: isLocked) {
                                     MotionSample(animation: animation, role: role, text: sampleText(for: item))
                                 } action: {
-                                    choose(animation, on: item)
+                                    if isLocked {
+                                        lockedPack = pack
+                                    } else {
+                                        choose(animation, on: item)
+                                    }
                                 }
                                 .accessibilityIdentifier("editor.motion.preset.\(animation.id)")
                             }
@@ -174,7 +195,8 @@ struct MotionPanel: View {
         }
     }
 
-    private func tile(name: String, isSelected: Bool, @ViewBuilder sample: () -> some View, action: @escaping () -> Void) -> some View {
+    private func tile(name: String, isSelected: Bool, isLocked: Bool = false, @ViewBuilder sample: () -> some View,
+                      action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: Theme.Spacing.xxs) {
                 sample()
@@ -185,6 +207,14 @@ struct MotionPanel: View {
                             .strokeBorder(isSelected ? Theme.Palette.accent : .clear, lineWidth: Theme.Size.selectionBorder)
                     }
                     .clipShape(.rect(cornerRadius: Theme.Radius.control))
+                    .overlay(alignment: .topTrailing) {
+                        if isLocked {
+                            Image(systemName: "lock.fill")
+                                .font(Theme.Typography.caption)
+                                .foregroundStyle(Theme.Palette.accent)
+                                .padding(Theme.Spacing.xxs)
+                        }
+                    }
                 Text(name)
                     .font(Theme.Typography.caption)
                     .foregroundStyle(isSelected ? Theme.Palette.accent : Theme.Palette.textSecondary)
@@ -194,6 +224,7 @@ struct MotionPanel: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(name)
+        .accessibilityValue(isLocked ? Text("Locked") : Text(""))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 

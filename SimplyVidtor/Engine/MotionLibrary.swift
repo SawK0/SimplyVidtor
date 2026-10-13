@@ -2,11 +2,14 @@ import Foundation
 import Observation
 
 /// Imported motion packs, one JSON file each in Application Support/Motion.
-/// The built-in pack always comes first.
+/// The built-in pack always comes first. Paid packs can be imported but stay
+/// locked until their product is owned.
 @Observable
 final class MotionLibrary {
     let directory: URL
     private(set) var imported: [MotionPack] = []
+    /// Product ids the user owns. StoreKit will keep this in sync with purchases.
+    private(set) var ownedProducts: Set<String> = []
 
     static let standardDirectory = URL.applicationSupportDirectory.appending(path: "Motion", directoryHint: .isDirectory)
 
@@ -21,6 +24,29 @@ final class MotionLibrary {
     }
 
     var packs: [MotionPack] { [.builtIn] + imported }
+
+    func isUnlocked(_ pack: MotionPack) -> Bool {
+        pack.productID.map(ownedProducts.contains) ?? true
+    }
+
+    func grant(_ productID: String) {
+        ownedProducts.insert(productID)
+        saveOwnership()
+    }
+
+    func revoke(_ productID: String) {
+        ownedProducts.remove(productID)
+        saveOwnership()
+    }
+
+    private var ownershipFile: URL {
+        directory.appending(path: "owned-products.plist", directoryHint: .notDirectory)
+    }
+
+    private func saveOwnership() {
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try? PropertyListEncoder().encode(ownedProducts.sorted()).write(to: ownershipFile, options: .atomic)
+    }
 
     func pack(containing animationID: MotionAnimation.ID) -> MotionPack? {
         packs.first { pack in pack.animations.contains { $0.id == animationID } }
@@ -61,5 +87,7 @@ final class MotionLibrary {
             .filter { $0.pathExtension == "json" }
             .compactMap { try? MotionPack.load(Data(contentsOf: $0)) }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        let owned = (try? Data(contentsOf: ownershipFile)).flatMap { try? PropertyListDecoder().decode([String].self, from: $0) }
+        ownedProducts = Set(owned ?? [])
     }
 }

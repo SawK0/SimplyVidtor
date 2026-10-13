@@ -17,7 +17,11 @@ nonisolated struct MotionPack: Codable, Hashable, Identifiable, Sendable {
     var author: String
     /// PNG or JPEG.
     var thumbnail: Data?
+    /// The App Store product that unlocks the pack; `nil` for a free pack.
+    var productID: String?
     var animations: [MotionAnimation]
+
+    var isFree: Bool { productID == nil }
 
     var isBuiltIn: Bool { id == Self.builtInID }
 
@@ -51,6 +55,10 @@ nonisolated struct MotionPack: Codable, Hashable, Identifiable, Sendable {
         try check(!name.trimmingCharacters(in: .whitespaces).isEmpty && name.count <= 40, "name must be 1 to 40 characters")
         try check(!author.trimmingCharacters(in: .whitespaces).isEmpty, "author is missing")
         try check(!version.isEmpty, "version is missing")
+        if let productID {
+            try check(productID.range(of: #"^[A-Za-z0-9._-]{1,100}$"#, options: .regularExpression) != nil,
+                      "productID may use letters, numbers, dots, dashes and underscores")
+        }
         if let thumbnail {
             try check(thumbnail.count <= Self.maxThumbnailSize, "thumbnail is over 500 KB")
             let source = CGImageSourceCreateWithData(thumbnail as CFData, nil)

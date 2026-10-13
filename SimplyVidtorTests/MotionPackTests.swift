@@ -108,4 +108,25 @@ struct MotionPackTests {
         let reopened = try JSONDecoder().decode(Timeline.self, from: saved)
         #expect(reopened.textItems[0].motion.entrance?.animation == pack.animations[0])
     }
+    @Test func paidPacksStayLockedUntilOwned() throws {
+        let library = MotionLibrary.temporary()
+        var paid = try MotionPack.load(Data(contentsOf: sampleURL))
+        paid.productID = "com.test.pro"
+        try library.importPack(paid)
+        let stored = try #require(library.imported.first)
+        #expect(!library.isUnlocked(stored))
+        #expect(library.isUnlocked(.builtIn))
+
+        library.grant("com.test.pro")
+        #expect(library.isUnlocked(stored))
+        #expect(MotionLibrary(directory: library.directory).isUnlocked(stored), "Ownership persists")
+        library.revoke("com.test.pro")
+        #expect(!library.isUnlocked(stored))
+    }
+
+    @Test func productIDMustBeAPlainIdentifier() throws {
+        var paid = try MotionPack.load(Data(contentsOf: sampleURL))
+        paid.productID = "not allowed!"
+        #expect(throws: MotionPackError.self) { try paid.validated() }
+    }
 }
