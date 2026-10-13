@@ -5,6 +5,7 @@ struct RootView: View {
     @State private var router = AppRouter()
     @Environment(\.modelContext) private var context
     @Environment(\.mediaStore) private var store
+    @Environment(MotionLibrary.self) private var motionLibrary: MotionLibrary?
 
     var body: some View {
         #if DEBUG
@@ -40,6 +41,7 @@ struct RootView: View {
             try? library.removeUnusedMedia()
             #if DEBUG
             await seedSampleAudioIfRequested()
+            seedMotionPackIfRequested()
             #endif
         }
     }
@@ -70,6 +72,14 @@ struct RootView: View {
             guard (try? ToneGenerator.writeTone(to: url, seconds: seconds)) != nil else { continue }
             _ = try? await AudioLibrary(context: context, store: store).importFile(at: url)
         }
+    }
+
+    /// `-seedMotionPack` imports the bundled sample pack, for UI tests.
+    private func seedMotionPackIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("-seedMotionPack"),
+              let url = Bundle.main.url(forResource: "sample-motion-pack", withExtension: "json")
+        else { return }
+        _ = try? motionLibrary?.importPack(from: url)
     }
     #endif
 }

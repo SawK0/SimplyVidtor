@@ -141,7 +141,7 @@ Chunk 5: history
 ### M7: Motion
 - [x] Animation format: keyframe data over 0...1 progress (opacity, offset, scale, rotation, reveal) with cubic-bezier easing (`Motion.swift`). Built-in presets use the same format (`MotionPresets`). Text items embed their In / Out / Loop animations (`TextMotion`); the compositor applies them per frame
 - [x] In / Out / Loop animations for text and stickers: Fade, Slide, Pop, Bounce, Spin, Wipe, Zoom (In / Out); Pulse, Float, Bounce, Wiggle, Spin (Loop); duration, easing, direction and strength. Animate panel opens from the text and sticker panels; choosing an animation plays it once
-- [ ] Animation packs: manifest (id, version, author, thumbnails) plus animations, imported from Files and validated. Projects embed the animations they use, so they render even if a pack is removed
+- [x] Animation packs: one JSON file (id, version, author, thumbnail, animations; see `docs/motion-packs.md`), imported from Files in the Animate panel and validated (`MotionPack`, `MotionLibrary`). Long press a pack to remove it. Projects embed the animations they use, so they render even if a pack is removed
 - [ ] Per-character text effects (typewriter) in the same format
 - [ ] Store-ready pack ownership (StoreKit later)
 

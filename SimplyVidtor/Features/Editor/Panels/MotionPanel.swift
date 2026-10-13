@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// In, Out and Loop animations for the selected text or sticker. Choosing an
 /// animation plays it once in the preview. Commits as one undo step on Done.
@@ -7,6 +8,9 @@ struct MotionPanel: View {
     let onDone: () -> Void
 
     @State private var role = MotionRole.entrance
+    @State private var isImporting = false
+    @State private var importError: String?
+    @Environment(MotionLibrary.self) private var library: MotionLibrary?
 
     private var item: TextItem? { session.selectedText }
 
@@ -17,6 +21,18 @@ struct MotionPanel: View {
             }
         }
         .onDisappear(perform: commit)
+        .fileImporter(isPresented: $isImporting, allowedContentTypes: [.json]) { result in
+            do {
+                try library?.importPack(from: result.get())
+            } catch {
+                importError = error.localizedDescription
+            }
+        }
+        .alert("Couldn’t Import Pack", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(importError ?? "")
+        }
     }
 
     private func controls(for item: TextItem) -> some View {
@@ -34,13 +50,39 @@ struct MotionPanel: View {
                         set(nil, on: item)
                     }
                     .accessibilityIdentifier("editor.motion.none")
-                    ForEach(animations, id: \.id) { animation in
-                        tile(name: animation.name, isSelected: item.motion[role]?.animation.id == animation.id) {
-                            MotionSample(animation: animation, role: role, text: item.isSticker ? item.text : "Aa")
-                        } action: {
-                            choose(animation, on: item)
+                    if let applied = item.motion[role],
+                       !packs.contains(where: { $0.animations.contains { $0.id == applied.animation.id } }) {
+                        // From a removed pack: the project still has it.
+                        tile(name: applied.animation.name, isSelected: true) {
+                            MotionSample(animation: applied.animation, role: role, text: sampleText(for: item))
+                        } action: {}
+                        .accessibilityIdentifier("editor.motion.preset.\(applied.animation.id)")
+                    }
+                    ForEach(packs) { pack in
+                        let animations = pack.animations.filter { $0.roles.contains(role) }
+                        if !animations.isEmpty {
+                            if !pack.isBuiltIn {
+                                packLabel(pack)
+                            }
+                            ForEach(animations) { animation in
+                                tile(name: animation.name, isSelected: item.motion[role]?.animation.id == animation.id) {
+                                    MotionSample(animation: animation, role: role, text: sampleText(for: item))
+                                } action: {
+                                    choose(animation, on: item)
+                                }
+                                .accessibilityIdentifier("editor.motion.preset.\(animation.id)")
+                            }
                         }
-                        .accessibilityIdentifier("editor.motion.preset.\(animation.id)")
+                    }
+                    if library != nil {
+                        tile(name: String(localized: "Import"), isSelected: false) {
+                            Image(systemName: "square.and.arrow.down")
+                                .font(.system(size: Theme.Size.toolIcon))
+                                .foregroundStyle(Theme.Palette.textSecondary)
+                        } action: {
+                            isImporting = true
+                        }
+                        .accessibilityIdentifier("editor.motion.import")
                     }
                 }
             }
@@ -51,9 +93,47 @@ struct MotionPanel: View {
         }
     }
 
-    /// Animations that can play in the current role. Entrances also play as exits.
-    private var animations: [MotionAnimation] {
-        MotionPresets.all.filter { $0.roles.contains(role) }
+    private var packs: [MotionPack] { library?.packs ?? [.builtIn] }
+
+    private func sampleText(for item: TextItem) -> String {
+        item.isSticker ? item.text : "Aa"
+    }
+
+    /// Starts an imported pack's tiles; long press to remove the pack.
+    private func packLabel(_ pack: MotionPack) -> some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            Rectangle()
+                .fill(Theme.Palette.separator)
+                .frame(width: Theme.Size.hairline, height: Theme.Size.filterSwatch)
+            VStack(spacing: Theme.Spacing.xxs) {
+                Group {
+                    if let data = pack.thumbnail, let image = UIImage(data: data) {
+                        Image(uiImage: image).resizable().scaledToFill()
+                    } else {
+                        Image(systemName: "shippingbox")
+                            .font(.system(size: Theme.Size.toolIcon))
+                            .foregroundStyle(Theme.Palette.textSecondary)
+                    }
+                }
+                .frame(width: Theme.Size.filterSwatch / 2, height: Theme.Size.filterSwatch / 2)
+                .clipShape(.rect(cornerRadius: Theme.Radius.clip))
+                Text(pack.name)
+                    .font(Theme.Typography.caption)
+                    .foregroundStyle(Theme.Palette.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+            }
+            .frame(width: Theme.Size.filterSwatch)
+        }
+        .contextMenu {
+            Button("Remove Pack", systemImage: "trash", role: .destructive) {
+                try? library?.remove(pack.id)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(pack.name)
+        .accessibilityHint("Pack")
+        .accessibilityIdentifier("editor.motion.pack.\(pack.id)")
     }
 
     @ViewBuilder

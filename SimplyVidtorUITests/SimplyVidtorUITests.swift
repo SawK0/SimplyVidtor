@@ -6,7 +6,7 @@ final class SimplyVidtorUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
-        app.launchArguments = ["-inMemoryStore", "-stubMediaPicker", "-seedSampleAudio"]
+        app.launchArguments = ["-inMemoryStore", "-stubMediaPicker", "-seedSampleAudio", "-seedMotionPack"]
         app.launch()
     }
 
@@ -420,6 +420,32 @@ final class SimplyVidtorUITests: XCTestCase {
         let item = app.descendants(matching: .any)["timeline.text.0"]
         XCTAssertTrue(item.label.hasSuffix("animated"), "Got \(item.label)")
         XCTAssertTrue(app.buttons["editor.undo"].waitForEnabled(timeout: 2))
+    }
+
+    @MainActor
+    func testImportedPackAnimatesTextAndCanBeRemoved() throws {
+        createProject()
+        tapTool("editor.tool.text")
+        let field = app.textFields["editor.text.field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 2))
+        field.typeText("Hi\n")
+        app.buttons["editor.animate"].tap()
+
+        // -seedMotionPack imports the bundled sample pack.
+        let drop = app.buttons["editor.motion.preset.com.simplyvidtor.sample.drop"]
+        XCTAssertTrue(drop.waitForExistence(timeout: 2))
+        drop.tap()
+        XCTAssertTrue(drop.isSelected)
+
+        // Removing the pack keeps the animation on the text.
+        let pack = app.descendants(matching: .any)["editor.motion.pack.com.simplyvidtor.sample"]
+        pack.press(forDuration: 1)
+        let remove = app.buttons["Remove Pack"]
+        XCTAssertTrue(remove.waitForExistence(timeout: 2))
+        remove.tap()
+        XCTAssertTrue(pack.waitForNonExistence(timeout: 2))
+        XCTAssertTrue(drop.exists && drop.isSelected, "Still shown as the text's animation")
+        XCTAssertFalse(app.buttons["editor.motion.preset.com.simplyvidtor.sample.swing"].exists)
     }
 
     @MainActor

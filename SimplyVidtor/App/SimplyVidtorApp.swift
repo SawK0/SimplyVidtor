@@ -14,6 +14,7 @@ struct SimplyVidtorApp: App {
     private let container = makeContainer()
     /// A throwaway store with `-inMemoryStore`, so cleanup can't delete real media.
     private let mediaStore = inMemory ? MediaStore.temporary() : .standard
+    @State private var motionLibrary = inMemory ? MotionLibrary.temporary() : MotionLibrary()
 
     var body: some Scene {
         WindowGroup {
@@ -22,6 +23,7 @@ struct SimplyVidtorApp: App {
         }
         .modelContainer(container)
         .environment(\.mediaStore, mediaStore)
+        .environment(motionLibrary)
     }
 
     private static func makeContainer() -> ModelContainer {

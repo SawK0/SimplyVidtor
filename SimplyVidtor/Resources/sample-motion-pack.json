@@ -1,0 +1,42 @@
+{
+  "formatVersion": 1,
+  "id": "com.simplyvidtor.sample",
+  "name": "Sample Pack",
+  "version": "1.0",
+  "author": "SimplyVidtor",
+  "animations": [
+    {
+      "id": "com.simplyvidtor.sample.drop",
+      "name": "Drop",
+      "roles": ["in", "out"],
+      "keyframes": [
+        { "time": 0, "opacity": 0, "offsetY": -0.4, "scale": 1.4, "easing": "easeIn" },
+        { "time": 0.6, "scale": 0.9, "easing": "easeOut" },
+        { "time": 1 }
+      ]
+    },
+    {
+      "id": "com.simplyvidtor.sample.swing",
+      "name": "Swing",
+      "roles": ["in", "out"],
+      "isDirectional": true,
+      "keyframes": [
+        { "time": 0, "opacity": 0, "offsetY": 0.15, "rotation": -0.5, "easing": [0.34, 1.56, 0.64, 1] },
+        { "time": 1 }
+      ]
+    },
+    {
+      "id": "com.simplyvidtor.sample.heartbeat",
+      "name": "Heartbeat",
+      "roles": ["loop"],
+      "keyframes": [
+        { "time": 0, "easing": "easeOut" },
+        { "time": 0.15, "scale": 1.2, "easing": "easeIn" },
+        { "time": 0.3, "easing": "easeOut" },
+        { "time": 0.45, "scale": 1.15, "easing": "easeIn" },
+        { "time": 0.6 },
+        { "time": 1 }
+      ]
+    }
+  ]
+}
