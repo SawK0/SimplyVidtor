@@ -6,6 +6,7 @@ nonisolated final class LiveStore: @unchecked Sendable {
     private let lock = NSLock()
     private var texts: [TextItem]
     private var clipLooks: [Clip.ID: ClipLook]
+    private var trackOrder: [Track.ID] = Track.defaults.filter { $0.kind != .audio }.map(\.id)
 
     init(textItems: [TextItem] = [], looks: [Clip.ID: ClipLook] = [:]) {
         texts = textItems
@@ -22,6 +23,12 @@ nonisolated final class LiveStore: @unchecked Sendable {
         set { lock.withLock { clipLooks = newValue } }
     }
 
+    /// Overlay video and text tracks, bottom to top.
+    var visualTrackOrder: [Track.ID] {
+        get { lock.withLock { trackOrder } }
+        set { lock.withLock { trackOrder = newValue } }
+    }
+
     func look(for id: Clip.ID) -> ClipLook? {
         lock.withLock { clipLooks[id] }
     }
@@ -29,9 +36,11 @@ nonisolated final class LiveStore: @unchecked Sendable {
     /// Mirrors the timeline's text and looks.
     func update(from timeline: Timeline) {
         let looks = Dictionary(timeline.allClips.map { ($0.id, $0.look) }, uniquingKeysWith: { first, _ in first })
+        let order = timeline.visualTracks.map(\.id)
         lock.withLock {
             texts = timeline.textItems
             clipLooks = looks
+            trackOrder = order
         }
     }
 }

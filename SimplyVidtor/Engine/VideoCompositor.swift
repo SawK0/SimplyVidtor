@@ -35,23 +35,35 @@ nonisolated final class ClipInstruction: NSObject, AVVideoCompositionInstruction
         }
     }
 
+    /// A clip on an overlay track, drawn in its track's place in the stack.
+    struct Overlay {
+        let trackID: Track.ID
+        let layer: Layer
+    }
+
     let timeRange: CMTimeRange
     /// Empty draws black; two layers blend from the first to the second.
     let layers: [Layer]
     let transition: TransitionKind?
+    /// The whole transition; an instruction may cover only part of it.
+    let transitionRange: CMTimeRange
+    let overlays: [Overlay]
     let live: LiveStore?
     let enablePostProcessing = false
     let containsTweening: Bool
     let passthroughTrackID = kCMPersistentTrackID_Invalid
     let requiredSourceTrackIDs: [NSValue]?
 
-    init(timeRange: CMTimeRange, layers: [Layer], transition: TransitionKind? = nil, live: LiveStore? = nil) {
+    init(timeRange: CMTimeRange, layers: [Layer], transition: TransitionKind? = nil, transitionRange: CMTimeRange? = nil,
+         overlays: [Overlay] = [], live: LiveStore? = nil) {
         self.timeRange = timeRange
         self.layers = layers
         self.transition = transition
+        self.transitionRange = transitionRange ?? timeRange
+        self.overlays = overlays
         self.live = live
         containsTweening = transition != nil
-        let trackIDs = layers.compactMap { layer -> NSNumber? in
+        let trackIDs = (layers + overlays.map(\.layer)).compactMap { layer -> NSNumber? in
             if case .video(let trackID, _) = layer.content { NSNumber(value: trackID) } else { nil }
         }
         requiredSourceTrackIDs = trackIDs.isEmpty ? nil : trackIDs
@@ -96,7 +108,7 @@ nonisolated class VideoCompositor: NSObject, AVVideoCompositing, @unchecked Send
                 request.finish(with: CocoaError(.featureUnsupported))
                 return
             }
-            let image = withOverlays(frame(for: request), request: request)
+            let image = layered(frame(for: request), request: request)
             if Self.isHDR {
                 CVBufferSetAttachment(output, kCVImageBufferColorPrimariesKey, kCVImageBufferColorPrimaries_ITU_R_2020, .shouldPropagate)
                 CVBufferSetAttachment(output, kCVImageBufferTransferFunctionKey, kCVImageBufferTransferFunction_ITU_R_2100_HLG, .shouldPropagate)
@@ -121,7 +133,7 @@ nonisolated class VideoCompositor: NSObject, AVVideoCompositing, @unchecked Send
         guard let first = canvases.first else { return black }
         guard let kind = instruction.transition, canvases.count == 2 else { return first }
 
-        let range = instruction.timeRange
+        let range = instruction.transitionRange
         let progress = range.duration.seconds > 0
             ? min(max((request.compositionTime - range.start).seconds / range.duration.seconds, 0), 1)
             : 1
@@ -135,36 +147,56 @@ nonisolated class VideoCompositor: NSObject, AVVideoCompositing, @unchecked Send
         }
     }
 
-    private func withOverlays(_ frame: CIImage, request: AVAsynchronousVideoCompositionRequest) -> CIImage {
-        guard let live = (request.videoCompositionInstruction as? ClipInstruction)?.live else { return frame }
+    /// Overlay clips and text, track by track from the bottom up.
+    private func layered(_ frame: CIImage, request: AVAsynchronousVideoCompositionRequest) -> CIImage {
+        guard let instruction = request.videoCompositionInstruction as? ClipInstruction, let live = instruction.live else { return frame }
         let time = request.compositionTime.seconds
-        let unit = min(renderSize.width, renderSize.height)
-        return live.textItems.filter { $0.isVisible(at: time) }.map { $0.placed(at: time) }.reduce(frame) { frame, item in
-            let local = time - item.timelineStart
-            guard let image = textImage(for: item, at: local) else { return frame }
-            let motion = item.motion.state(at: local, duration: item.duration)
-            guard motion.opacity > 0, motion.scale > 0, motion.reveal > 0 else { return frame }
-            let source = CIImage(cgImage: image)
-            let extent = source.extent
-            var picture = Self.revealed(source, motion)
-            if motion.opacity < 1 {
-                let fade = CIFilter.colorMatrix()
-                fade.inputImage = picture
-                fade.aVector = CIVector(x: 0, y: 0, z: 0, w: motion.opacity)
-                picture = fade.outputImage ?? picture
-            }
-            // Rotation is clockwise on screen; Core Image's y axis points up.
-            let placed = picture
-                .transformed(by: CGAffineTransform(translationX: -extent.width / 2, y: -extent.height / 2))
-                .transformed(by: CGAffineTransform(scaleX: motion.scale, y: motion.scale))
-                .transformed(by: CGAffineTransform(rotationAngle: -(item.rotation + motion.rotation)))
-                .transformed(by: CGAffineTransform(
-                    translationX: item.x * renderSize.width + motion.offsetX * unit,
-                    y: (1 - item.y) * renderSize.height - motion.offsetY * unit
-                ))
-            return placed.composited(over: frame)
+        let texts = live.textItems.filter { $0.isVisible(at: time) }.map { $0.placed(at: time) }
+        var order = live.visualTrackOrder
+        // Tracks added during a drag aren't in the order yet; they go on top.
+        for id in texts.map(\.trackID) + instruction.overlays.map(\.trackID) where !order.contains(id) {
+            order.append(id)
         }
-        .cropped(to: CGRect(origin: .zero, size: renderSize))
+        var image = frame
+        for trackID in order {
+            for overlay in instruction.overlays where overlay.trackID == trackID {
+                let look = overlay.layer.clipID.flatMap { live.look(for: $0) } ?? overlay.layer.look
+                if let picture = picture(for: overlay.layer, look: look, request: request) {
+                    image = picture.composited(over: image)
+                }
+            }
+            for item in texts where item.trackID == trackID {
+                image = drawText(item, over: image, at: time)
+            }
+        }
+        return image.cropped(to: CGRect(origin: .zero, size: renderSize))
+    }
+
+    private func drawText(_ item: TextItem, over frame: CIImage, at time: Double) -> CIImage {
+        let unit = min(renderSize.width, renderSize.height)
+        let local = time - item.timelineStart
+        guard let image = textImage(for: item, at: local) else { return frame }
+        let motion = item.motion.state(at: local, duration: item.duration)
+        guard motion.opacity > 0, motion.scale > 0, motion.reveal > 0 else { return frame }
+        let source = CIImage(cgImage: image)
+        let extent = source.extent
+        var picture = Self.revealed(source, motion)
+        if motion.opacity < 1 {
+            let fade = CIFilter.colorMatrix()
+            fade.inputImage = picture
+            fade.aVector = CIVector(x: 0, y: 0, z: 0, w: motion.opacity)
+            picture = fade.outputImage ?? picture
+        }
+        // Rotation is clockwise on screen; Core Image's y axis points up.
+        let placed = picture
+            .transformed(by: CGAffineTransform(translationX: -extent.width / 2, y: -extent.height / 2))
+            .transformed(by: CGAffineTransform(scaleX: motion.scale, y: motion.scale))
+            .transformed(by: CGAffineTransform(rotationAngle: -(item.rotation + motion.rotation)))
+            .transformed(by: CGAffineTransform(
+                translationX: item.x * renderSize.width + motion.offsetX * unit,
+                y: (1 - item.y) * renderSize.height - motion.offsetY * unit
+            ))
+        return placed.composited(over: frame)
     }
 
     /// Crops a wipe's hidden part. The visible part grows toward `revealDirection`.
@@ -205,11 +237,17 @@ nonisolated class VideoCompositor: NSObject, AVVideoCompositing, @unchecked Send
 
     /// One layer, framed, filtered and placed on black.
     private func canvas(for layer: ClipInstruction.Layer, look: ClipLook, request: AVAsynchronousVideoCompositionRequest) -> CIImage {
-        guard let image = source(for: layer.content, request: request) else { return black }
+        guard let picture = picture(for: layer, look: look, request: request) else { return black }
+        return picture.composited(over: black).cropped(to: CGRect(origin: .zero, size: renderSize))
+    }
+
+    /// One layer, framed, filtered and placed, with nothing around it.
+    private func picture(for layer: ClipInstruction.Layer, look: ClipLook, request: AVAsynchronousVideoCompositionRequest) -> CIImage? {
+        guard let image = source(for: layer.content, request: request) else { return nil }
         let framed = FilterRenderer.framed(image, rotation: look.rotation, crop: look.crop)
         let looked = FilterRenderer.apply(look.adjustments, filter: look.filter, to: framed)
         let transform = look.transform(atSource: layer.sourceTime(at: request.compositionTime.seconds))
-        return placed(looked, transform).composited(over: black).cropped(to: CGRect(origin: .zero, size: renderSize))
+        return placed(looked, transform)
     }
 
     private func source(for content: ClipInstruction.Content, request: AVAsynchronousVideoCompositionRequest) -> CIImage? {
