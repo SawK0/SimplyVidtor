@@ -18,6 +18,10 @@ struct VideoCompositorTests {
         .video(mediaFile: try store.moveIn(TestMedia.sampleVideoCopy()), duration: 2)
     }
 
+    private func soundClip() async throws -> Clip {
+        .video(mediaFile: try store.moveIn(try await TestMedia.soundVideoCopy()), duration: 2)
+    }
+
     private func photoClip() throws -> Clip {
         // TestMedia.pngData is filled with (255, 204, 0).
         try MediaImporter.photoClip(writing: TestMedia.pngData(), extension: "png", to: store)
@@ -89,9 +93,9 @@ struct VideoCompositorTests {
     }
 
     @Test func overlappingVideosUseTwoLanes() async throws {
-        var first = try videoClip()
+        var first = try await soundClip()
         first.transition = ClipTransition(kind: .crossfade, duration: 0.5)
-        let timeline = Timeline(clips: [first, try videoClip(), try videoClip()])
+        let timeline = Timeline(clips: [first, try await soundClip(), try await soundClip()])
         let output = try await CompositionBuilder.build(timeline, store: store)
         #expect(output.composition.tracks(withMediaType: .video).count == 2)
         #expect(output.composition.tracks(withMediaType: .audio).count == 2)

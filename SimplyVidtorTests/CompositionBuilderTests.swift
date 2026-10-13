@@ -10,6 +10,10 @@ struct CompositionBuilderTests {
         .video(mediaFile: try store.moveIn(TestMedia.sampleVideoCopy()), duration: 2)
     }
 
+    private func soundClip() async throws -> Clip {
+        .video(mediaFile: try store.moveIn(try await TestMedia.soundVideoCopy()), duration: 2)
+    }
+
     private func toneItem() throws -> AudioItem {
         let url = URL.temporaryDirectory.appending(path: "\(UUID().uuidString).wav")
         try ToneGenerator.writeTone(to: url)
@@ -48,7 +52,7 @@ struct CompositionBuilderTests {
         var item = try toneItem()
         item.timelineStart = 1
         item.fadeIn = 0.5
-        let timeline = Timeline(clips: [try sampleClip()], audioItems: [item])
+        let timeline = Timeline(clips: [try await soundClip()], audioItems: [item])
 
         let output = try await CompositionBuilder.build(timeline, store: store)
         let audioTracks = output.composition.tracks(withMediaType: .audio)
@@ -59,7 +63,7 @@ struct CompositionBuilderTests {
 
     @Test func missingAudioFileIsSkipped() async throws {
         let timeline = Timeline(
-            clips: [try sampleClip()],
+            clips: [try await soundClip()],
             audioItems: [AudioItem(mediaFile: "gone.m4a", mediaDuration: 4)]
         )
         let output = try await CompositionBuilder.build(timeline, store: store)
@@ -72,10 +76,10 @@ struct CompositionBuilderTests {
     }
 
     @Test func clipsThatDontKeepPitchUseAVarispeedTrack() async throws {
-        var chipmunk = try sampleClip()
+        var chipmunk = try await soundClip()
         chipmunk.speed = 2
         chipmunk.preservesPitch = false
-        let timeline = Timeline(clips: [try sampleClip(), chipmunk])
+        let timeline = Timeline(clips: [try await soundClip(), chipmunk])
 
         let output = try await CompositionBuilder.build(timeline, store: store)
         #expect(output.composition.tracks(withMediaType: .audio).count == 2)
@@ -85,16 +89,16 @@ struct CompositionBuilderTests {
     }
 
     @Test func pitchKeepingClipsShareOneTrack() async throws {
-        let output = try await CompositionBuilder.build(Timeline(clips: [try sampleClip(), try sampleClip()]), store: store)
+        let output = try await CompositionBuilder.build(Timeline(clips: [try await soundClip(), try await soundClip()]), store: store)
         #expect(output.composition.tracks(withMediaType: .audio).count == 1)
         #expect(output.audioMix.inputParameters.first?.audioTimePitchAlgorithm == .spectral)
     }
 
     @Test func mutedClipPlaysSilently() async throws {
-        var muted = try sampleClip()
+        var muted = try await soundClip()
         muted.volume = 0.8
         muted.isMuted = true
-        let output = try await CompositionBuilder.build(Timeline(clips: [try sampleClip(), muted]), store: store)
+        let output = try await CompositionBuilder.build(Timeline(clips: [try await soundClip(), muted]), store: store)
 
         let parameters = try #require(output.audioMix.inputParameters.first)
         #expect(volume(of: parameters, at: 1) == 1)
@@ -107,5 +111,12 @@ struct CompositionBuilderTests {
         var range = CMTimeRange.zero
         _ = parameters.getVolumeRamp(for: CompositionBuilder.time(seconds), startVolume: &start, endVolume: &end, timeRange: &range)
         return start
+    }
+
+    @Test func silentClipsLeaveNoEmptyAudioTracks() async throws {
+        // Export rejects audio tracks that hold only empty ranges.
+        let output = try await CompositionBuilder.build(Timeline(clips: [try sampleClip(), .photo(mediaFile: "p.heic")]), store: store)
+        #expect(output.composition.tracks(withMediaType: .audio).isEmpty)
+        #expect(output.audioMix.inputParameters.isEmpty)
     }
 }

@@ -39,7 +39,9 @@ struct EditorView: View {
             }
         }
         .sheet(isPresented: $isExporting) {
-            ExportSheet(onClose: { isExporting = false })
+            if let session {
+                ExportSheet(session: session, store: store) { isExporting = false }
+            }
         }
         .task { await openSession() }
         .onDisappear {

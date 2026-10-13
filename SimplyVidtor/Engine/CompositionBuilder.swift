@@ -132,6 +132,12 @@ nonisolated enum CompositionBuilder {
         }
         add(until: composition.duration, [])
 
+        // Export rejects tracks that hold only empty ranges (e.g. clips without sound).
+        for track in composition.tracks(withMediaType: .audio) where track.segments.allSatisfy(\.isEmpty) {
+            composition.removeTrack(track)
+            mixParameters.removeAll { $0.trackID == track.trackID }
+        }
+
         let audioMix = AVMutableAudioMix()
         audioMix.inputParameters = mixParameters
 

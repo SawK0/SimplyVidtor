@@ -127,8 +127,9 @@ Chunk 5: history
 - [x] Audio: editor Audio tool opens the picker on the Audio tab; select an audio item to move or trim it on the timeline and set volume and fades in the Audio panel; waveform from `Waveform` (8 kHz mono peaks, cached)
 
 ### M5: Export (Figma 03, 08, 09)
-- [ ] Export sheet: resolution, frame rate, Smart HDR, estimated size
-- [ ] Exporting screen with progress and cancel
+- [x] Export sheet: resolution, frame rate, HEVC, estimated size (settings remembered). `Exporter` renders through the same composition and compositor as the preview
+- [ ] Smart HDR: needs a 10-bit compositor pipeline (currently 8-bit BGRA)
+- [x] Exporting screen with progress and cancel
 - [ ] Save to Photos, Done screen with share sheet
 
 ### M6: Polish

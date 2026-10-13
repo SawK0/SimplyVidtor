@@ -33,6 +33,30 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testExportCanBeCancelledAndCompleted() throws {
+        createProject()
+        app.buttons["editor.export"].tap()
+        let start = app.buttons["export.start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["export.estimate"].label.hasPrefix("About"))
+
+        // 4K takes long enough to cancel.
+        app.descendants(matching: .any)["export.resolution"].buttons["4K"].tap()
+        start.tap()
+        let cancel = app.buttons["export.cancel"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 3))
+        cancel.tap()
+        XCTAssertTrue(start.waitForExistence(timeout: 5), "Cancelling returns to settings")
+
+        app.descendants(matching: .any)["export.resolution"].buttons["720p"].tap()
+        start.tap()
+        XCTAssertTrue(app.staticTexts["export.done"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["export.share"].exists)
+        app.buttons["export.finish"].tap()
+        XCTAssertTrue(app.buttons["editor.export"].waitForExistence(timeout: 3))
+    }
+
+    @MainActor
     func testPlaybackAdvancesTimecode() throws {
         createProject()
         let timecode = app.staticTexts["editor.timecode"]

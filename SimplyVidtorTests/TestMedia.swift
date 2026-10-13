@@ -1,7 +1,9 @@
+import AVFoundation
 import CoreGraphics
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
+@testable import SimplyVidtor
 
 /// Sample media bundled with the test target, plus generated images.
 enum TestMedia {
@@ -17,6 +19,26 @@ enum TestMedia {
         let copy = URL.temporaryDirectory.appending(path: "\(UUID().uuidString).mov")
         try FileManager.default.copyItem(at: sampleVideo, to: copy)
         return copy
+    }
+
+    /// The sample video with a 2 s tone as its soundtrack (the bundled sample is silent).
+    static func soundVideoCopy() async throws -> URL {
+        let video = AVURLAsset(url: try sampleVideoCopy())
+        let toneURL = URL.temporaryDirectory.appending(path: "\(UUID().uuidString).wav")
+        try ToneGenerator.writeTone(to: toneURL, seconds: 2)
+        let tone = AVURLAsset(url: toneURL)
+
+        let composition = AVMutableComposition()
+        let range = CMTimeRange(start: .zero, duration: try await video.load(.duration))
+        let videoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid)!
+        try videoTrack.insertTimeRange(range, of: try await video.loadTracks(withMediaType: .video)[0], at: .zero)
+        let audioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)!
+        try audioTrack.insertTimeRange(range, of: try await tone.loadTracks(withMediaType: .audio)[0], at: .zero)
+
+        let session = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetPassthrough)!
+        let output = URL.temporaryDirectory.appending(path: "\(UUID().uuidString).mov")
+        try await session.export(to: output, as: .mov)
+        return output
     }
 
     static func pngData(width: Int = 300, height: Int = 200) -> Data {
