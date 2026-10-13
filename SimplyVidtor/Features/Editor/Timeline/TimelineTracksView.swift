@@ -45,10 +45,7 @@ struct TimelineTracksView: View {
         .background {
             Color.clear
                 .contentShape(.rect)
-                .onTapGesture {
-                    session.select(nil)
-                    session.selectTransition(after: nil)
-                }
+                .onTapGesture(perform: deselect)
         }
     }
 
@@ -202,8 +199,39 @@ struct TimelineTracksView: View {
             case .audio: audioTrack(track)
             }
         }
+        // Long press an empty part of a row for the track's actions.
+        .background {
+            Color.clear
+                .contentShape(.rect)
+                .onTapGesture(perform: deselect)
+                .contextMenu { trackMenu(track) }
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("timeline.track.\(track.kind.rawValue).\(position)")
+    }
+
+    @ViewBuilder
+    private func trackMenu(_ track: Track) -> some View {
+        if track.kind != .audio {
+            let visual = timeline.visualTracks
+            Button("Bring Forward", systemImage: "square.2.layers.3d.top.filled") {
+                Task { await session.update { $0.moveTrack(track.id, up: true) } }
+            }
+            .disabled(visual.last == track)
+            Button("Send Backward", systemImage: "square.2.layers.3d.bottom.filled") {
+                Task { await session.update { $0.moveTrack(track.id, up: false) } }
+            }
+            .disabled(visual.first == track)
+        }
+        Button("Delete Track", systemImage: "trash", role: .destructive) {
+            Task { await session.update { $0.removeTrack(track.id) } }
+        }
+        .disabled(!timeline.canRemoveTrack(track.id))
+    }
+
+    private func deselect() {
+        session.select(nil)
+        session.selectTransition(after: nil)
     }
 
     /// The same-kind track `rows` rows away from `trackID` (by a vertical drag of `dy` points).

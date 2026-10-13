@@ -261,6 +261,24 @@ final class EditorSession {
         if !clips.isEmpty { await seek(to: timeline.startTime(ofClipAt: index)) }
     }
 
+    /// Places clips one after another on an overlay track from the playhead, and selects the first.
+    func addOverlays(_ clips: [Clip]) async {
+        var ids: [Clip.ID] = []
+        let playhead = currentTime
+        await update { timeline in
+            var start = playhead
+            for clip in clips {
+                ids.append(timeline.insertOverlay(clip, at: start))
+                start += clip.duration
+            }
+        }
+        selectedClipID = ids.first
+    }
+
+    func addTrack(_ kind: TrackKind) async {
+        await update { $0.addTrack(kind) }
+    }
+
     // MARK: - Interactive edits
 
     /// Starts a drag-driven edit. Updates change `timeline` live without saving

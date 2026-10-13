@@ -356,6 +356,52 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testAddOverlayClipAndEditIt() throws {
+        createProject()
+        tapTool("editor.tool.overlay")
+        let add = app.buttons["mediaPicker.add"]
+        XCTAssertTrue(add.waitForExistence(timeout: 3))
+        add.tap()
+
+        let overlay = app.descendants(matching: .any)["timeline.overlay.0"]
+        XCTAssertTrue(overlay.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.descendants(matching: .any)["timeline.track.video.0"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["timeline.clip.1"].exists, "Not added to the main track")
+        XCTAssertTrue(overlay.isSelected, "The new overlay is selected")
+
+        // Clip tools act on the selected overlay.
+        tapTool("editor.tool.transform")
+        let reset = app.buttons["editor.transform.reset"]
+        XCTAssertTrue(reset.waitForExistence(timeout: 2))
+        XCTAssertTrue(reset.isEnabled, "Overlays start smaller than the frame")
+        app.buttons["editor.panel.done"].tap()
+
+        tapTool("editor.tool.delete")
+        XCTAssertTrue(overlay.waitForNonExistence(timeout: 3))
+    }
+
+    @MainActor
+    func testAddAndDeleteTrack() throws {
+        createProject()
+        tapTool("editor.tool.track")
+        let video = app.buttons["Video Track"]
+        XCTAssertTrue(video.waitForExistence(timeout: 2))
+        video.tap()
+        let row = app.descendants(matching: .any)["timeline.track.video.0"]
+        XCTAssertTrue(row.waitForExistence(timeout: 3))
+
+        // Long press an empty part of the row, right of the playhead.
+        let timeline = app.descendants(matching: .any)["editor.timeline"].frame
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: timeline.midX + 100, dy: row.frame.midY))
+            .press(forDuration: 1)
+        let delete = app.buttons["Delete Track"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 2))
+        delete.tap()
+        XCTAssertTrue(row.waitForNonExistence(timeout: 3))
+    }
+
+    @MainActor
     func testTextCanBeMovedOnPreviewAndTrimmedOnTimeline() throws {
         createProject()
         tapTool("editor.tool.text")

@@ -116,6 +116,31 @@ struct ToolButton: View {
     }
 }
 
+/// A toolbar button that opens a menu.
+struct ToolMenu<Content: View>: View {
+    let title: LocalizedStringKey
+    let systemImage: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        Menu {
+            content
+        } label: {
+            VStack(spacing: Theme.Spacing.xxs) {
+                Image(systemName: systemImage)
+                    .font(.system(size: Theme.Size.toolIcon, weight: .regular))
+                    .frame(height: Theme.Size.toolIcon + Theme.Spacing.xxs)
+                Text(title)
+                    .font(Theme.Typography.caption)
+                    .lineLimit(1)
+            }
+            .foregroundStyle(Theme.Palette.textPrimary)
+            .frame(minWidth: Theme.Size.toolButtonMinWidth, minHeight: Theme.Size.minTapTarget)
+            .contentShape(.rect)
+        }
+    }
+}
+
 // MARK: - Shared press feedback
 
 /// Dims while pressed or disabled.

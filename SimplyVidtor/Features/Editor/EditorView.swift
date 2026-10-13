@@ -8,6 +8,8 @@ struct EditorView: View {
     let onClose: () -> Void
 
     @State private var pickerTab: MediaPickerTab?
+    /// The picker's clips go on an overlay track instead of the main track.
+    @State private var picksOverlay = false
     @State private var activeTool: Tool?
     @State private var isExporting = false
     @State private var isFullscreen = false
@@ -34,7 +36,10 @@ struct EditorView: View {
         .foregroundStyle(Theme.Palette.textPrimary)
         .background(Theme.Palette.bgBase)
         .fullScreenCover(item: $pickerTab) { tab in
-            MediaPickerView(tab: tab, onCancel: { pickerTab = nil }, onAdd: append)
+            MediaPickerView(tab: tab, onCancel: {
+                pickerTab = nil
+                picksOverlay = false
+            }, onAdd: append)
         }
         .fullScreenCover(isPresented: $isFullscreen) {
             if let session {
@@ -234,6 +239,11 @@ struct EditorView: View {
     private func append(_ result: MediaPickerResult) {
         pickerTab = nil
         guard let session else { return }
+        if picksOverlay {
+            picksOverlay = false
+            Task { await session.addOverlays(result.clips) }
+            return
+        }
         let hadClips = !session.timeline.clips.isEmpty
         Task {
             await session.insertAtPlayhead(result.clips, audio: result.audio)
@@ -288,6 +298,19 @@ struct EditorView: View {
                 .accessibilityIdentifier("editor.tool.sticker")
                 ToolButton(title: "Audio", systemImage: "music.note") { pickerTab = .audio }
                     .accessibilityIdentifier("editor.tool.audio")
+                ToolButton(title: "Overlay", systemImage: "rectangle.on.rectangle") {
+                    picksOverlay = true
+                    pickerTab = .media
+                }
+                .disabled(session == nil)
+                .accessibilityIdentifier("editor.tool.overlay")
+                ToolMenu(title: "Track", systemImage: "plus.rectangle.on.rectangle") {
+                    Button("Video Track", systemImage: "rectangle.on.rectangle") { Task { await session?.addTrack(.video) } }
+                    Button("Text Track", systemImage: "textformat") { Task { await session?.addTrack(.text) } }
+                    Button("Audio Track", systemImage: "music.note") { Task { await session?.addTrack(.audio) } }
+                }
+                .disabled(session == nil)
+                .accessibilityIdentifier("editor.tool.track")
                 ToolButton(title: "Crop", systemImage: "crop") { open(.crop) }
                     .disabled(session?.timeline.clips.isEmpty ?? true)
                     .accessibilityIdentifier("editor.tool.crop")

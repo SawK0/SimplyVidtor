@@ -60,6 +60,10 @@ struct ComponentGallery: View {
                                     selectedTool = title
                                 }
                             }
+                            ToolMenu(title: "Track", systemImage: "plus.rectangle.on.rectangle") {
+                                Button("Video") {}
+                                Button("Text") {}
+                            }
                         }
                         .padding(.vertical, Theme.Spacing.xs)
                     }
