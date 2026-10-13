@@ -107,3 +107,17 @@ nonisolated extension Clip {
         )
     }
 }
+
+/// How a clip's picture is drawn, apart from timing.
+nonisolated struct ClipLook: Hashable, Sendable {
+    var filter: ClipFilter?
+    var adjustments = ClipAdjustments()
+    var rotation = 0
+    var crop: CropRect?
+}
+
+nonisolated extension Clip {
+    var look: ClipLook {
+        ClipLook(filter: filter, adjustments: adjustments, rotation: rotation, crop: crop)
+    }
+}

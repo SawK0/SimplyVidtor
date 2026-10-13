@@ -108,19 +108,3 @@ nonisolated enum TextRenderer {
         return luminance > 0.6 ? cgColor(0x000000) : cgColor(0xFFFFFF)
     }
 }
-
-/// Overlays the compositor draws on every frame. The editor updates it while
-/// text is being edited so the preview follows without a rebuild.
-nonisolated final class OverlayStore: @unchecked Sendable {
-    private let lock = NSLock()
-    private var items: [TextItem]
-
-    init(textItems: [TextItem] = []) {
-        items = textItems
-    }
-
-    var textItems: [TextItem] {
-        get { lock.withLock { items } }
-        set { lock.withLock { items = newValue } }
-    }
-}

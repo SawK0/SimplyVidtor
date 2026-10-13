@@ -115,12 +115,23 @@ struct VideoCompositorTests {
         #expect(after.r > 230, "Yellow photo again, got \(after)")
     }
 
-    @Test func overlayStoreChangesShowWithoutRebuilding() async throws {
-        let overlays = OverlayStore()
-        let output = try await CompositionBuilder.build(Timeline(clips: [try photoClip()]), store: store, overlays: overlays)
-        overlays.textItems = [TextItem(text: "            ", timelineStart: 0, size: 0.3, color: 0x0000FF, background: .box)]
+    @Test func liveTextChangesShowWithoutRebuilding() async throws {
+        let live = LiveStore()
+        let output = try await CompositionBuilder.build(Timeline(clips: [try photoClip()]), store: store, live: live)
+        live.textItems = [TextItem(text: "            ", timelineStart: 0, size: 0.3, color: 0x0000FF, background: .box)]
         let color = TestMedia.centerColor(of: try await frame(of: output, at: 1))
         #expect(color.b > 200, "Got \(color)")
+    }
+
+    @Test func liveLookChangesShowWithoutRebuilding() async throws {
+        let live = LiveStore()
+        let clip = try photoClip()
+        let output = try await CompositionBuilder.build(Timeline(clips: [clip]), store: store, live: live)
+        var look = clip.look
+        look.filter = ClipFilter(preset: .mono)
+        live.looks[clip.id] = look
+        let color = TestMedia.centerColor(of: try await frame(of: output, at: 1))
+        #expect(abs(color.r - color.b) < 10, "Expected the live mono look, got \(color)")
     }
 
     @Test func videoFrameIsNotBlack() async throws {

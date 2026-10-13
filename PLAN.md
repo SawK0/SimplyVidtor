@@ -121,7 +121,7 @@ Chunk 5: history
 - [x] Transitions between clips: cross-fade and dip to black. Clips overlap by the transition (shortening the timeline); overlapping clips alternate between two video and audio lanes
 
 ### M4: Overlays (Figma 07)
-- [x] Text track: add, edit with keyboard, font / color / background / size; rendered by the compositor, live while editing via `OverlayStore`
+- [x] Text track: add, edit with keyboard, font / color / background / size; rendered by the compositor, live while editing via `LiveStore`
 - [x] Text: drag, pinch and rotate on the preview; move and trim text items on the timeline
 - [x] Stickers: emoji grid; stickers are `TextItem`s with `isSticker`, sharing text rendering, gestures and the overlay track (bundled image stickers later)
 - [x] Audio: editor Audio tool opens the picker on the Audio tab; select an audio item to move or trim it on the timeline and set volume and fades in the Audio panel; waveform from `Waveform` (8 kHz mono peaks, cached)
@@ -133,7 +133,7 @@ Chunk 5: history
 - [x] Save to Photos (add-only permission, Settings link if denied), Done screen with share sheet
 
 ### M6: Canvas & framing
-- [ ] Live look preview: adjust, filters, crop / rotate update while dragging (looks read per frame like text overlays); volume live too. Speed still applies on release
+- [x] Live look preview: adjust, filters, crop / rotate update while dragging, read per frame from `LiveStore` like text. Speed and volume apply on release (playback pauses while editing)
 - [ ] Project format: frame shape (9:16, 16:9, 1:1, 4:5, 4:3), base resolution and frame rate. Chosen after picking media (preset "Match first clip"), changeable from the editor. The preview shows the exact output frame; export defaults to it
 - [ ] Clip transform: position, scale, rotation, opacity, Fit / Fill. Pinch / drag / rotate on the preview and a Transform panel. Static values first; animation comes in M7
 - [ ] Tap the ruler to jump the playhead (the playhead stays centred, like other mobile editors)

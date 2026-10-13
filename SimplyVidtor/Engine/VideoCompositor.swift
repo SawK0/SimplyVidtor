@@ -11,20 +11,16 @@ nonisolated final class ClipInstruction: NSObject, AVVideoCompositionInstruction
         case blank
     }
 
-    /// One clip's picture and the looks applied to it.
+    /// One clip's picture and its look (the live store's look wins, if any).
     struct Layer {
         let content: Content
-        let filter: ClipFilter?
-        let adjustments: ClipAdjustments
-        let rotation: Int
-        let crop: CropRect?
+        let clipID: Clip.ID?
+        let look: ClipLook
 
         init(content: Content, clip: Clip? = nil) {
             self.content = content
-            filter = clip?.filter
-            adjustments = clip?.adjustments ?? ClipAdjustments()
-            rotation = clip?.rotation ?? 0
-            crop = clip?.crop
+            clipID = clip?.id
+            look = clip?.look ?? ClipLook()
         }
     }
 
@@ -32,17 +28,17 @@ nonisolated final class ClipInstruction: NSObject, AVVideoCompositionInstruction
     /// Empty draws black; two layers blend from the first to the second.
     let layers: [Layer]
     let transition: TransitionKind?
-    let overlays: OverlayStore?
+    let live: LiveStore?
     let enablePostProcessing = false
     let containsTweening: Bool
     let passthroughTrackID = kCMPersistentTrackID_Invalid
     let requiredSourceTrackIDs: [NSValue]?
 
-    init(timeRange: CMTimeRange, layers: [Layer], transition: TransitionKind? = nil, overlays: OverlayStore? = nil) {
+    init(timeRange: CMTimeRange, layers: [Layer], transition: TransitionKind? = nil, live: LiveStore? = nil) {
         self.timeRange = timeRange
         self.layers = layers
         self.transition = transition
-        self.overlays = overlays
+        self.live = live
         containsTweening = transition != nil
         let trackIDs = layers.compactMap { layer -> NSNumber? in
             if case .video(let trackID, _) = layer.content { NSNumber(value: trackID) } else { nil }
@@ -108,7 +104,9 @@ nonisolated class VideoCompositor: NSObject, AVVideoCompositing, @unchecked Send
 
     private func frame(for request: AVAsynchronousVideoCompositionRequest) -> CIImage {
         guard let instruction = request.videoCompositionInstruction as? ClipInstruction else { return black }
-        let canvases = instruction.layers.map { canvas(for: $0, request: request) }
+        let canvases = instruction.layers.map { layer in
+            canvas(for: layer, look: layer.clipID.flatMap { instruction.live?.look(for: $0) } ?? layer.look, request: request)
+        }
         guard let first = canvases.first else { return black }
         guard let kind = instruction.transition, canvases.count == 2 else { return first }
 
@@ -127,9 +125,9 @@ nonisolated class VideoCompositor: NSObject, AVVideoCompositing, @unchecked Send
     }
 
     private func withOverlays(_ frame: CIImage, request: AVAsynchronousVideoCompositionRequest) -> CIImage {
-        guard let overlays = (request.videoCompositionInstruction as? ClipInstruction)?.overlays else { return frame }
+        guard let live = (request.videoCompositionInstruction as? ClipInstruction)?.live else { return frame }
         let time = request.compositionTime.seconds
-        return overlays.textItems.filter { $0.isVisible(at: time) }.reduce(frame) { frame, item in
+        return live.textItems.filter { $0.isVisible(at: time) }.reduce(frame) { frame, item in
             guard let image = textImage(for: item) else { return frame }
             let picture = CIImage(cgImage: image)
             let extent = picture.extent
@@ -160,10 +158,10 @@ nonisolated class VideoCompositor: NSObject, AVVideoCompositing, @unchecked Send
     }
 
     /// One layer, framed, filtered and fitted on black.
-    private func canvas(for layer: ClipInstruction.Layer, request: AVAsynchronousVideoCompositionRequest) -> CIImage {
+    private func canvas(for layer: ClipInstruction.Layer, look: ClipLook, request: AVAsynchronousVideoCompositionRequest) -> CIImage {
         guard let image = source(for: layer.content, request: request) else { return black }
-        let framed = FilterRenderer.framed(image, rotation: layer.rotation, crop: layer.crop)
-        let looked = FilterRenderer.apply(layer.adjustments, filter: layer.filter, to: framed)
+        let framed = FilterRenderer.framed(image, rotation: look.rotation, crop: look.crop)
+        let looked = FilterRenderer.apply(look.adjustments, filter: look.filter, to: framed)
         return fitted(looked).composited(over: black)
     }
 

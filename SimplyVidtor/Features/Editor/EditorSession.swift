@@ -29,8 +29,8 @@ final class EditorSession {
     private(set) var selectedTransitionClipID: Clip.ID?
 
     @ObservationIgnored let player = AVPlayer()
-    /// Lets text edits show in the preview without a rebuild.
-    @ObservationIgnored private let overlays = OverlayStore()
+    /// Lets text and look edits show in the preview without a rebuild.
+    @ObservationIgnored private let live = LiveStore()
     @ObservationIgnored private let store: MediaStore
     @ObservationIgnored private var timeObserver: Any?
     @ObservationIgnored private var endObserver: (any NSObjectProtocol)?
@@ -252,14 +252,19 @@ final class EditorSession {
     func updateInteractiveEdit(_ edit: (inout Timeline) -> Void) {
         guard var copy = interactiveBase else { return }
         edit(&copy)
-        let textChanged = copy.textItems != timeline.textItems
+        let changed = Self.drawsDifferently(copy, timeline)
         timeline = copy
-        if textChanged { showTextChanges() }
+        if changed { showLiveChanges() }
     }
 
-    /// Pushes text to the compositor and redraws the current frame.
-    private func showTextChanges() {
-        overlays.textItems = timeline.textItems
+    /// Whether text or clip looks differ, which the live store can show without a rebuild.
+    private static func drawsDifferently(_ a: Timeline, _ b: Timeline) -> Bool {
+        a.textItems != b.textItems || a.clips.map(\.look) != b.clips.map(\.look)
+    }
+
+    /// Pushes text and looks to the compositor and redraws the current frame.
+    private func showLiveChanges() {
+        live.update(from: timeline)
         guard let item = player.currentItem, let composition = item.videoComposition else { return }
         item.videoComposition = composition.mutableCopy() as? AVVideoComposition
     }
@@ -280,15 +285,15 @@ final class EditorSession {
     func cancelInteractiveEdit() {
         isDragging = false
         guard let base = interactiveBase else { return }
-        let textChanged = base.textItems != timeline.textItems
+        let changed = Self.drawsDifferently(base, timeline)
         timeline = base
         interactiveBase = nil
-        if textChanged { showTextChanges() }
+        if changed { showLiveChanges() }
     }
 
     func rebuild() async {
         do {
-            let output = try await CompositionBuilder.build(timeline, store: store, overlays: overlays)
+            let output = try await CompositionBuilder.build(timeline, store: store, live: live)
             let item = AVPlayerItem(asset: output.composition)
             item.audioMix = output.audioMix
             item.videoComposition = output.videoComposition
