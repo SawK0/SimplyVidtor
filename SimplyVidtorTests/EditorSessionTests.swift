@@ -262,4 +262,20 @@ struct EditorSessionTests {
         await session.update { $0.removeAudio(item.id) }
         #expect(session.selectedAudioID == nil)
     }
+
+    @Test func playAtTheEndRestartsFromTheStart() async throws {
+        let clip = Clip.video(mediaFile: try store.moveIn(TestMedia.sampleVideoCopy()), duration: 2)
+        let session = try makeSession(clips: [clip])
+        await session.rebuild()
+        // Play to the end, like the user did.
+        await session.seek(to: session.duration - 0.3)
+        session.togglePlayback()
+        try await Task.sleep(for: .milliseconds(900))
+        #expect(!session.isPlaying)
+        session.togglePlayback()
+        try await Task.sleep(for: .milliseconds(600))
+        #expect(session.isPlaying, "One tap keeps playing")
+        #expect(session.currentTime > 0.1 && session.currentTime < 1.5, "Playing from the start, at \(session.currentTime)")
+        session.pause()
+    }
 }

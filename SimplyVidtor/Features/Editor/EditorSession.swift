@@ -312,8 +312,15 @@ final class EditorSession {
     func togglePlayback() {
         if isPlaying {
             pause()
+        } else if currentTime >= duration - 0.05 {
+            // Rewind first: playing before the seek lands just hits the end again.
+            isPlaying = true
+            Task {
+                await seek(to: 0)
+                guard isPlaying else { return }
+                player.play()
+            }
         } else {
-            if currentTime >= duration - 0.05 { Task { await seek(to: 0) } }
             player.play()
             isPlaying = true
         }
