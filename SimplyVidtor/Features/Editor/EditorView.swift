@@ -10,6 +10,8 @@ struct EditorView: View {
     @State private var pickerTab: MediaPickerTab?
     /// The picker's clips go on an overlay track instead of the main track.
     @State private var picksOverlay = false
+    /// The video track picked clips go on; `nil` picks a free one.
+    @State private var overlayTrack: Track.ID?
     @State private var explainsVideoLoad = false
     @State private var activeTool: Tool?
     @State private var isExporting = false
@@ -40,6 +42,7 @@ struct EditorView: View {
             MediaPickerView(tab: tab, onCancel: {
                 pickerTab = nil
                 picksOverlay = false
+                overlayTrack = nil
             }, onAdd: append)
         }
         .fullScreenCover(isPresented: $isFullscreen) {
@@ -263,12 +266,20 @@ struct EditorView: View {
         .background(Theme.Palette.bgBase)
     }
 
+    private func addOverlay(to track: Track.ID?) {
+        overlayTrack = track
+        picksOverlay = true
+        pickerTab = .media
+    }
+
     private func append(_ result: MediaPickerResult) {
         pickerTab = nil
         guard let session else { return }
         if picksOverlay {
             picksOverlay = false
-            Task { await session.addOverlays(result.clips) }
+            let track = overlayTrack
+            overlayTrack = nil
+            Task { await session.addOverlays(result.clips, track: track) }
             return
         }
         let hadClips = !session.timeline.clips.isEmpty
@@ -283,7 +294,10 @@ struct EditorView: View {
     private var timeline: some View {
         Group {
             if let session {
-                EditorTimelineView(session: session, store: store)
+                EditorTimelineView(session: session, store: store, onAddMedia: { track in
+                    session.pause()
+                    addOverlay(to: track)
+                })
             } else {
                 Color.clear
             }
@@ -326,8 +340,9 @@ struct EditorView: View {
                 ToolButton(title: "Audio", systemImage: "music.note") { pickerTab = .audio }
                     .accessibilityIdentifier("editor.tool.audio")
                 ToolButton(title: "Overlay", systemImage: "rectangle.on.rectangle") {
-                    picksOverlay = true
-                    pickerTab = .media
+                    // Next to the selected overlay, if there is one.
+                    let selected = session?.selectedClipID.flatMap { id in session?.timeline.overlays.first { $0.id == id } }
+                    addOverlay(to: selected?.trackID)
                 }
                 .disabled(session == nil)
                 .accessibilityIdentifier("editor.tool.overlay")

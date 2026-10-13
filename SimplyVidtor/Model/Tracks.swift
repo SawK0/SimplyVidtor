@@ -145,13 +145,14 @@ nonisolated extension Timeline {
         overlays.firstIndex { $0.id == id }
     }
 
-    /// Places a clip on the first overlay track free at `time` (adding one if needed).
+    /// Places a clip on `track` (or the first overlay track) at `time`; if
+    /// that spot is taken, on the nearest free overlay track.
     @discardableResult
-    mutating func insertOverlay(_ clip: Clip, at time: Double) -> Clip.ID {
+    mutating func insertOverlay(_ clip: Clip, at time: Double, track preferredTrack: Track.ID? = nil) -> Clip.ID {
         var clip = clip
         clip.transform.scale = OverlayClip.defaultScale
         let start = max(time, 0)
-        let preferred = tracks.first { $0.kind == .video }?.id
+        let preferred = preferredTrack ?? tracks.first { $0.kind == .video }?.id
         let trackID = freeTrack(.video, for: start..<(start + clip.duration), preferred: preferred, excluding: nil)
         overlays.append(OverlayClip(clip: clip, timelineStart: start, trackID: trackID))
         return clip.id
@@ -164,6 +165,25 @@ nonisolated extension Timeline {
         overlays[index].timelineStart = max(start, 0)
         if let trackID, track(trackID)?.kind == .video { overlays[index].trackID = trackID }
         settleOverlay(at: index)
+    }
+
+    /// Moves a main-track clip onto an overlay track, starting at `start`.
+    /// It keeps its look; its transition is dropped.
+    mutating func moveToOverlay(_ id: Clip.ID, track trackID: Track.ID, start: Double) {
+        guard let clip = self[clip: id], index(ofClip: id) != nil, track(trackID)?.kind == .video else { return }
+        removeClip(id)
+        var moved = clip
+        moved.gapBefore = 0
+        moved.transition = nil
+        overlays.append(OverlayClip(clip: moved, timelineStart: max(start, 0), trackID: trackID))
+        settleOverlay(at: overlays.count - 1)
+    }
+
+    /// Moves an overlay onto the main track, inserted where `time` falls.
+    mutating func moveToMain(_ id: Clip.ID, at time: Double) {
+        guard let index = overlayIndex(of: id) else { return }
+        let clip = overlays.remove(at: index).clip
+        insert([clip], at: insertionIndex(at: time))
     }
 
     /// Moves an item off any item it now overlaps on its track.

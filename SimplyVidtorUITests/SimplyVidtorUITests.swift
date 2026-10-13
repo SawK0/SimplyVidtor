@@ -424,6 +424,60 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testDragClipsBetweenMainAndVideoTracks() throws {
+        createProject()
+        app.buttons["editor.addClip"].tap()
+        app.buttons["mediaPicker.add"].tap()
+        XCTAssertTrue(clip(1).waitForExistence(timeout: 3))
+        tapTool("editor.tool.track")
+        app.buttons["Video Track"].tap()
+        let row = app.descendants(matching: .any)["timeline.track.video.0"]
+        XCTAssertTrue(row.waitForExistence(timeout: 3))
+
+        // Long press the first clip and drag it down onto the video track.
+        let grab = clip(0).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let below = app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: clip(0).frame.midX, dy: row.frame.midY))
+        grab.press(forDuration: 0.6, thenDragTo: below, withVelocity: .slow, thenHoldForDuration: 0.2)
+        let overlay = app.descendants(matching: .any)["timeline.overlay.0"]
+        XCTAssertTrue(overlay.waitForExistence(timeout: 3), "Moved onto the video track")
+        XCTAssertFalse(clip(1).exists, "One clip left on the main track")
+
+        // Select it and drag it back up onto the main track.
+        overlay.tap()
+        let start = overlay.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let main = app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: overlay.frame.midX, dy: clip(0).frame.midY))
+        start.press(forDuration: 0.1, thenDragTo: main, withVelocity: .slow, thenHoldForDuration: 0.2)
+        XCTAssertTrue(overlay.waitForNonExistence(timeout: 3), "Back on the main track")
+        XCTAssertTrue(clip(1).exists)
+    }
+
+    @MainActor
+    func testAddMediaToAChosenVideoTrack() throws {
+        createProject()
+        for _ in 0..<2 {
+            tapTool("editor.tool.track")
+            app.buttons["Video Track"].tap()
+        }
+        let second = app.descendants(matching: .any)["timeline.track.video.1"]
+        XCTAssertTrue(second.waitForExistence(timeout: 3))
+
+        let timeline = app.descendants(matching: .any)["editor.timeline"].frame
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: timeline.midX + 100, dy: second.frame.midY))
+            .press(forDuration: 1)
+        let here = app.buttons["Add Media Here"]
+        XCTAssertTrue(here.waitForExistence(timeout: 2))
+        here.tap()
+        app.buttons["mediaPicker.add"].tap()
+
+        let overlay = app.descendants(matching: .any)["timeline.overlay.0"]
+        XCTAssertTrue(overlay.waitForExistence(timeout: 3))
+        XCTAssertEqual(overlay.frame.midY, second.frame.midY, accuracy: 4, "On the track that was long-pressed")
+    }
+
+    @MainActor
     func testAddAndDeleteTrack() throws {
         createProject()
         tapTool("editor.tool.track")

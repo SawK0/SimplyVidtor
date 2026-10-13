@@ -52,6 +52,30 @@ enum TimelineLayout {
             + CGFloat(rows.count + 1) * Theme.Spacing.xs
     }
 
+    enum Row: Equatable {
+        case main
+        case track(Track)
+    }
+
+    /// Rows in display order: the main track, visual tracks (drawing order), then audio.
+    static func displayTracks(of timeline: Timeline) -> [Track] {
+        timeline.visualTracks + timeline.audioTracks
+    }
+
+    /// The row under `y` in the tracks' coordinates; the gap between rows
+    /// counts toward the nearer one.
+    static func row(atY y: CGFloat, in timeline: Timeline) -> Row? {
+        let gap = Theme.Spacing.xs
+        var top = Theme.Size.rulerHeight + gap
+        var rows: [(Row, CGFloat)] = [(.main, Theme.Size.timelineClipHeight)]
+        rows += displayTracks(of: timeline).map { (.track($0), height(of: $0.kind)) }
+        for (row, height) in rows {
+            if y >= top - gap / 2, y < top + height + gap / 2 { return row }
+            top += height + gap
+        }
+        return nil
+    }
+
     /// The editor shows the default rows plus up to two more; past that the timeline scrolls.
     static func visibleHeight(for timeline: Timeline) -> CGFloat {
         min(contentHeight(for: timeline), contentHeight(for: Timeline()) + 2 * Theme.Size.overlayTrackHeight)

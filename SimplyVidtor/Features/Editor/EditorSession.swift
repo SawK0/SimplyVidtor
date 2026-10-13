@@ -261,14 +261,19 @@ final class EditorSession {
         if !clips.isEmpty { await seek(to: timeline.startTime(ofClipAt: index)) }
     }
 
-    /// Places clips one after another on an overlay track from the playhead, and selects the first.
-    func addOverlays(_ clips: [Clip]) async {
+    /// Places clips one after another from the playhead on `track` (or a free
+    /// overlay track), and selects the first.
+    func addOverlays(_ clips: [Clip], track: Track.ID? = nil) async {
         var ids: [Clip.ID] = []
         let playhead = currentTime
         await update { timeline in
             var start = playhead
+            var track = track
             for clip in clips {
-                ids.append(timeline.insertOverlay(clip, at: start))
+                let id = timeline.insertOverlay(clip, at: start, track: track)
+                ids.append(id)
+                // The rest follow on the same track.
+                track = timeline.overlays.first { $0.id == id }?.trackID
                 start += clip.duration
             }
         }

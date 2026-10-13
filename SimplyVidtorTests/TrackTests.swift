@@ -200,4 +200,38 @@ struct TrackTests {
         #expect(peak.count == 3 && abs(peak.time - 3.2) < 1e-9, "Photos don't count")
         #expect(Timeline(clips: [video(), video()]).peakVideoCount.count == 1, "Touching clips aren't at once")
     }
+
+    @Test func mainClipsMoveToOverlayTracksAndBack() throws {
+        var first = video(2)
+        first.transition = ClipTransition(kind: .crossfade, duration: 0.5)
+        var timeline = Timeline(clips: [first, video(2), video(2)])
+        let track = timeline.addTrack(.video)
+        let id = first.id
+
+        timeline.moveToOverlay(id, track: track, start: 3)
+        #expect(timeline.clips.count == 2 && timeline.index(ofClip: id) == nil)
+        #expect(timeline.timeRange(ofClip: id) == 3..<5 && timeline.overlays[0].trackID == track)
+        #expect(timeline[clip: id]?.transition == nil)
+
+        timeline.moveToMain(id, at: 3.5)
+        #expect(timeline.overlays.isEmpty)
+        #expect(timeline.index(ofClip: id) == 2, "Inserted after the clip under 3.5 s")
+    }
+
+    @Test func movingAClipOffTheMainTrackKeepsGapsWithTheMagnetOff() {
+        var timeline = Timeline(clips: [video(2), video(2), video(2)])
+        timeline.setMagnetic(false)
+        let track = timeline.addTrack(.video)
+        timeline.moveToOverlay(timeline.clips[1].id, track: track, start: 0)
+        #expect(timeline.timeRange(ofClipAt: 1) == 4..<6, "The last clip stays put")
+    }
+
+    @Test func overlaysGoOnTheTrackAskedFor() {
+        var timeline = Timeline()
+        let lower = timeline.addTrack(.video)
+        let upper = timeline.addTrack(.video, above: lower)
+        let id = timeline.insertOverlay(video(), at: 0, track: upper)
+        #expect(timeline.overlays.first { $0.id == id }?.trackID == upper)
+        _ = lower
+    }
 }
