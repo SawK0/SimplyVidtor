@@ -304,6 +304,15 @@ struct EditorView: View {
                 }
                 .disabled(session == nil)
                 .accessibilityIdentifier("editor.tool.overlay")
+                ToolButton(title: "Magnet", systemImage: "arrow.right.and.line.vertical.and.arrow.left",
+                           isSelected: session?.timeline.isMagnetic ?? true) {
+                    guard let session else { return }
+                    let on = !session.timeline.isMagnetic
+                    Task { await session.update { $0.setMagnetic(on) } }
+                }
+                .disabled(session == nil)
+                .accessibilityLabel(session?.timeline.isMagnetic ?? true ? "Magnet on" : "Magnet off")
+                .accessibilityIdentifier("editor.tool.magnet")
                 ToolMenu(title: "Track", systemImage: "plus.rectangle.on.rectangle") {
                     Button("Video Track", systemImage: "rectangle.on.rectangle") { Task { await session?.addTrack(.video) } }
                     Button("Text Track", systemImage: "textformat") { Task { await session?.addTrack(.text) } }

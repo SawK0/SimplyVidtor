@@ -53,14 +53,18 @@ struct TimelineTracksView: View {
         HStack(spacing: 0) {
             ForEach(Array(timeline.clips.enumerated()), id: \.element.id) { index, clip in
                 clipView(clip, at: index)
-                    // Clips joined by a transition overlap.
+                    // Gaps (magnet off) push clips right; clips joined by a transition overlap.
+                    .padding(.leading, metrics.width(of: timeline.gap(beforeClipAt: index)))
                     .padding(.trailing, -metrics.width(of: timeline.overlap(afterClipAt: index)))
             }
         }
         .overlay(alignment: .leading) {
             if session.selectedClipID == nil, reordering == nil, leadingTrim == nil {
                 ForEach(Array(timeline.clips.dropLast().enumerated()), id: \.element.id) { index, clip in
-                    transitionButton(after: clip, at: index)
+                    // Only clips that touch can have a transition.
+                    if timeline.gap(beforeClipAt: index + 1) == 0 {
+                        transitionButton(after: clip, at: index)
+                    }
                 }
             }
         }
@@ -156,7 +160,8 @@ struct TimelineTracksView: View {
                 timeline.trimEnd(ofClip: id, toSource: clip.sourceEnd + delta * clip.speed)
             }
         }
-        if leading, let i = timeline.index(ofClip: id) {
+        // With the magnet off the clip's end stays put by itself.
+        if leading, timeline.isMagnetic, let i = timeline.index(ofClip: id) {
             leadingTrim = (index, baseWidth - metrics.width(of: timeline.clips[i].duration))
         }
     }
@@ -579,6 +584,8 @@ struct EditorTimelineView: View {
     @State private var metrics = TimelineMetrics()
     @State private var zoomBase: TimelineMetrics?
     @State private var reordering: (id: Clip.ID, x: CGFloat)?
+    /// Magnet off: the clip being slid in time, and where the finger started.
+    @State private var sliding: (id: Clip.ID, startTime: Double)?
 
     var body: some View {
         GeometryReader { geo in
@@ -617,6 +624,10 @@ struct EditorTimelineView: View {
         let time = metrics.time(forOffset: trackX)
         // Only the main track's row reorders.
         let mainRow = (Theme.Size.rulerHeight + Theme.Spacing.xs)...(Theme.Size.rulerHeight + Theme.Spacing.xs + Theme.Size.timelineClipHeight)
+        if !session.timeline.isMagnetic || sliding != nil {
+            slide(state, time: time, y: y, mainRow: mainRow)
+            return
+        }
         switch state {
         case .began:
             guard !session.isEditingInteractively, mainRow.contains(y),
@@ -634,6 +645,32 @@ struct EditorTimelineView: View {
         case .ended, .cancelled, .failed:
             guard reordering != nil else { return }
             reordering = nil
+            Task { await session.endInteractiveEdit() }
+        default:
+            break
+        }
+    }
+
+    /// Magnet off: long-press a clip, then drag it along the track; it stops at its neighbours.
+    private func slide(_ state: UIGestureRecognizer.State, time: Double, y: CGFloat, mainRow: ClosedRange<CGFloat>) {
+        switch state {
+        case .began:
+            guard !session.isEditingInteractively, mainRow.contains(y),
+                  let index = session.timeline.clipIndex(at: time)
+            else { return }
+            session.beginInteractiveEdit()
+            session.selectedClipID = nil
+            sliding = (session.timeline.clips[index].id, time)
+        case .changed:
+            guard let sliding else { return }
+            let delta = time - sliding.startTime
+            session.updateInteractiveEdit { timeline in
+                guard let range = timeline.timeRange(ofClip: sliding.id) else { return }
+                timeline.slideClip(sliding.id, toStart: range.lowerBound + delta)
+            }
+        case .ended, .cancelled, .failed:
+            guard sliding != nil else { return }
+            sliding = nil
             Task { await session.endInteractiveEdit() }
         default:
             break

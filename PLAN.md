@@ -153,7 +153,7 @@ Chunk 5: history
 
 ### M9: Layers
 - [x] Track model (`Tracks.swift`): the main video track plus any number of overlay video, text and audio tracks; higher tracks draw on top. Items refer to tracks by id; an item landing on another hops to the nearest free track (or a new one). Clip tools find clips on any track (`Timeline[clip:]`, `modifyClip`)
-- [ ] Main track magnet: on (default) keeps clips back to back; off lets clips sit anywhere with gaps. Turning it back on closes gaps
+- [x] Main track magnet (toolbar): on (default) keeps clips back to back; off lets clips sit anywhere with gaps (long press a clip and drag it; trims, speed changes and deletes leave later clips in place). Turning it back on closes gaps. Only touching clips can have a transition
 - [x] Overlay clips (picture in picture) render with their own transform, looks and keyframes, stacked with text in track order; main-track gaps render black
 - [x] Overlay clips in the editor: the Overlay tool adds picked clips at the playhead on a free overlay track; every clip tool (speed, filters, transform, keyframes, split, duplicate, delete) works on them
 - [x] Timeline rows per track (rows below the main track in drawing order, then audio); the timeline grows with tracks and scrolls vertically past two extra rows. Drag text, audio and overlays sideways in time and up or down to another track of the same kind

@@ -381,6 +381,30 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testMagnetOffLetsClipsLeaveGaps() throws {
+        createProject()
+        let magnet = app.buttons["editor.tool.magnet"]
+        tapTool("editor.tool.magnet")
+        XCTAssertEqual(magnet.label, "Magnet off")
+
+        // Long press the clip and drag it right: it leaves a gap at the start.
+        let clip = app.descendants(matching: .any)["timeline.clip.0"]
+        let before = clip.frame.minX
+        let grab = clip.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5))
+        grab.press(forDuration: 0.6, thenDragTo: grab.withOffset(CGVector(dx: 80, dy: 0)))
+        let timecode = app.staticTexts["editor.timecode"]
+        expectation(for: NSPredicate(format: "NOT (label ENDSWITH '/ 00:05.0')"), evaluatedWith: timecode)
+        waitForExpectations(timeout: 3)
+        XCTAssertGreaterThan(clip.frame.minX, before + 40)
+
+        // Turning the magnet back on closes the gap.
+        tapTool("editor.tool.magnet")
+        XCTAssertEqual(magnet.label, "Magnet on")
+        expectation(for: NSPredicate(format: "label ENDSWITH '/ 00:05.0'"), evaluatedWith: timecode)
+        waitForExpectations(timeout: 3)
+    }
+
+    @MainActor
     func testAddAndDeleteTrack() throws {
         createProject()
         tapTool("editor.tool.track")
