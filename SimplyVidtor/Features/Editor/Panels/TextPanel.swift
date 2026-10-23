@@ -6,6 +6,8 @@ import SwiftUI
 struct TextPanel: View {
     let session: EditorSession
     let onAnimate: () -> Void
+    /// Reports when the keyboard opens and closes.
+    let onTypingChanged: (Bool) -> Void
     let onDone: () -> Void
 
     /// The new item before it's first edited onto the timeline.
@@ -14,9 +16,11 @@ struct TextPanel: View {
     @FocusState private var isTyping: Bool
 
     /// Edits `session.selectedText`, or starts a new item with `id` at the playhead.
-    init(session: EditorSession, id: TextItem.ID, onAnimate: @escaping () -> Void = {}, onDone: @escaping () -> Void) {
+    init(session: EditorSession, id: TextItem.ID, onAnimate: @escaping () -> Void = {},
+         onTypingChanged: @escaping (Bool) -> Void = { _ in }, onDone: @escaping () -> Void) {
         self.session = session
         self.onAnimate = onAnimate
+        self.onTypingChanged = onTypingChanged
         self.onDone = onDone
         let existing = session.selectedText
         _isNew = State(initialValue: existing == nil)
@@ -61,7 +65,11 @@ struct TextPanel: View {
             session.beginInteractiveEdit(byDrag: false)
             if isNew { isTyping = true }
         }
-        .onDisappear(perform: commit)
+        .onChange(of: isTyping) { _, typing in onTypingChanged(typing) }
+        .onDisappear {
+            onTypingChanged(false)
+            commit()
+        }
     }
 
     private var styleControls: some View {

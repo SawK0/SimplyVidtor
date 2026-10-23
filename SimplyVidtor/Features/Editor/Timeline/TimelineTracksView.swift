@@ -645,6 +645,7 @@ struct EditorTimelineView: View {
     /// Where a long-pressed main-track clip would land: another video track, or nil.
     @State private var dropTrack: Track?
     var onAddMedia: (Track.ID) -> Void = { _ in }
+    var isHidden = false
     /// Magnet off: the clip being slid in time, and where the finger started.
     @State private var sliding: (id: Clip.ID, startTime: Double)?
 
@@ -656,6 +657,7 @@ struct EditorTimelineView: View {
                 contentHeight: TimelineLayout.contentHeight(for: session.timeline),
                 offset: metrics.offset(for: session.currentTime),
                 isScrollEnabled: !session.isDragging,
+                isHidden: isHidden,
                 onScrub: { session.scrub(to: metrics.time(forOffset: $0)) },
                 onInteractionChanged: { if $0 { session.pause() } },
                 onLongPress: { state, point in reorder(state, trackX: point.x - inset, y: point.y) },

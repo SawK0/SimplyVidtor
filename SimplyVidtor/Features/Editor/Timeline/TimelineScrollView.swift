@@ -10,6 +10,8 @@ struct TimelineScrollView<Content: View>: UIViewRepresentable {
     /// Applied whenever the user isn't touching the timeline.
     let offset: CGFloat
     var isScrollEnabled = true
+    /// Stops touches reaching the content while it's collapsed.
+    var isHidden = false
     let onScrub: (CGFloat) -> Void
     let onInteractionChanged: (Bool) -> Void
     /// Long press in content coordinates. Done in UIKit because a SwiftUI long
@@ -45,6 +47,7 @@ struct TimelineScrollView<Content: View>: UIViewRepresentable {
         view.contentWidth = contentWidth
         view.contentHeight = contentHeight
         view.isScrollEnabled = isScrollEnabled
+        view.isUserInteractionEnabled = !isHidden
         if !context.coordinator.isInteracting, abs(view.contentOffset.x - offset) > 0.5 {
             // Jumps (ruler taps, undo) glide; playback's small steps don't.
             let isJump = abs(view.contentOffset.x - offset) > Self.jumpDistance

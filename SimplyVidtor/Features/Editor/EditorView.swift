@@ -14,6 +14,8 @@ struct EditorView: View {
     @State private var overlayTrack: Track.ID?
     @State private var explainsVideoLoad = false
     @State private var activeTool: Tool?
+    /// The text panel's keyboard is up; the timeline hides so the preview keeps its size.
+    @State private var isTypingText = false
     @State private var isExporting = false
     @State private var isFullscreen = false
     @State private var isEditingFormat = false
@@ -117,7 +119,8 @@ struct EditorView: View {
         case .transition: TransitionPanel(session: session) { session.selectTransition(after: nil) }
         case .text:
             if let id = session.selectedTextID {
-                TextPanel(session: session, id: id, onAnimate: { activeTool = .motion }) { session.selectText(nil) }
+                TextPanel(session: session, id: id, onAnimate: { activeTool = .motion },
+                          onTypingChanged: { isTypingText = $0 }) { session.selectText(nil) }
                     .id(id)
             }
         case .audio: AudioPanel(session: session) { session.selectAudio(nil) }
@@ -297,7 +300,7 @@ struct EditorView: View {
                 EditorTimelineView(session: session, store: store, onAddMedia: { track in
                     session.pause()
                     addOverlay(to: track)
-                })
+                }, isHidden: isTypingText)
             } else {
                 Color.clear
             }
@@ -306,6 +309,12 @@ struct EditorView: View {
         .frame(height: TimelineLayout.visibleHeight(for: session?.timeline ?? Timeline()))
         .animation(.snappy(duration: 0.25), value: session?.timeline.tracks.count)
         .padding(.vertical, Theme.Spacing.sm)
+        // Collapsed rather than removed, so it keeps its zoom.
+        .frame(height: isTypingText ? 0 : nil)
+        .clipped()
+        .opacity(isTypingText ? 0 : 1)
+        .accessibilityHidden(isTypingText)
+        .animation(.snappy(duration: 0.25), value: isTypingText)
     }
 
     private var toolbar: some View {

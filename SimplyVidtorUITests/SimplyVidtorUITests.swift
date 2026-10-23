@@ -318,11 +318,20 @@ final class SimplyVidtorUITests: XCTestCase {
     @MainActor
     func testAddEditAndDeleteText() throws {
         createProject()
+        let undo = app.buttons["editor.undo"]
+        let barBefore = undo.frame.minY
         tapTool("editor.tool.text")
 
         let field = app.textFields["editor.text.field"]
         XCTAssertTrue(field.waitForExistence(timeout: 2))
+        // The timeline hides while typing, so the preview grows down into its space.
+        expectation(for: NSPredicate { _, _ in undo.frame.minY > barBefore + 50 }, evaluatedWith: nil)
+        waitForExpectations(timeout: 2)
+        let barWhileTyping = undo.frame.minY
         field.typeText("Hello\n")
+        // It comes back once typing ends.
+        expectation(for: NSPredicate { _, _ in undo.frame.minY < barWhileTyping - 50 }, evaluatedWith: nil)
+        waitForExpectations(timeout: 2)
         XCTAssertTrue(app.staticTexts["Add Text"].exists, "Still new after typing")
         XCTAssertTrue(app.descendants(matching: .any)["editor.text.font"].waitForExistence(timeout: 2), "Style controls show once typing ends")
         app.buttons["editor.text.color.1"].tap()
