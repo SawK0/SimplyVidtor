@@ -308,7 +308,11 @@ struct TimelineTracksView: View {
             .gesture(
                 DragGesture(minimumDistance: 4, coordinateSpace: .named(Self.coordinateSpace))
                     .onChanged { drag in moveOverlay(clip.id, by: drag.translation.width, fingerY: drag.location.y) }
-                    .onEnded { drag in finishOverlayMove(clip.id, by: drag.translation.width) },
+                    .onEnded { drag in
+                        // A flick can end before the last change arrives.
+                        moveOverlay(clip.id, by: drag.translation.width, fingerY: drag.location.y)
+                        finishOverlayMove(clip.id, by: drag.translation.width)
+                    },
                 including: isSelected ? .all : .subviews
             )
             .offset(x: metrics.offset(for: overlay.timelineStart))
@@ -401,17 +405,12 @@ struct TimelineTracksView: View {
                         }
                     }
                     .gesture(
-                        DragGesture(minimumDistance: 4)
-                            .onChanged { drag in
-                                let dy = drag.translation.height
-                                // `start` is the item as the drag began.
-                                dragText(item, by: drag.translation.width) { start, delta in
-                                    var moved = start.moved(toStart: start.timelineStart + delta)
-                                    moved.trackID = self.track(start.trackID, movedBy: dy)
-                                    return moved
-                                }
-                            }
-                            .onEnded { _ in endTextDrag() },
+                        DragGesture(minimumDistance: 4, coordinateSpace: .named(Self.coordinateSpace))
+                            .onChanged { drag in moveText(item, by: drag.translation) }
+                            .onEnded { drag in
+                                moveText(item, by: drag.translation)
+                                endTextDrag()
+                            },
                         including: isSelected ? .all : .subviews
                     )
                     .offset(x: metrics.offset(for: item.timelineStart))
@@ -423,6 +422,16 @@ struct TimelineTracksView: View {
                     .accessibilityAction { session.selectText(item.id) }
                     .accessibilityIdentifier("timeline.text.\(index)")
             }
+        }
+    }
+
+    /// Moves the text in time and onto the text track under the finger.
+    private func moveText(_ item: TextItem, by translation: CGSize) {
+        // `start` is the item as the drag began.
+        dragText(item, by: translation.width) { start, delta in
+            var moved = start.moved(toStart: start.timelineStart + delta)
+            moved.trackID = self.track(start.trackID, movedBy: translation.height)
+            return moved
         }
     }
 
@@ -458,16 +467,12 @@ struct TimelineTracksView: View {
                         }
                     }
                     .gesture(
-                        DragGesture(minimumDistance: 4)
-                            .onChanged { drag in
-                                let dy = drag.translation.height
-                                dragAudio(item, by: drag.translation.width) { start, delta in
-                                    var moved = start.moved(toStart: start.timelineStart + delta)
-                                    moved.trackID = self.track(start.trackID, movedBy: dy)
-                                    return moved
-                                }
-                            }
-                            .onEnded { _ in endAudioDrag() },
+                        DragGesture(minimumDistance: 4, coordinateSpace: .named(Self.coordinateSpace))
+                            .onChanged { drag in moveAudio(item, by: drag.translation) }
+                            .onEnded { drag in
+                                moveAudio(item, by: drag.translation)
+                                endAudioDrag()
+                            },
                         including: isSelected ? .all : .subviews
                     )
                     .offset(x: metrics.offset(for: item.timelineStart))
@@ -479,6 +484,14 @@ struct TimelineTracksView: View {
                     .accessibilityAction { session.selectAudio(item.id) }
                     .accessibilityIdentifier("timeline.audio.\(index)")
             }
+        }
+    }
+
+    private func moveAudio(_ item: AudioItem, by translation: CGSize) {
+        dragAudio(item, by: translation.width) { start, delta in
+            var moved = start.moved(toStart: start.timelineStart + delta)
+            moved.trackID = self.track(start.trackID, movedBy: translation.height)
+            return moved
         }
     }
 
@@ -526,9 +539,13 @@ private struct SelectionFrame: View {
             .background(Theme.Palette.accent, in: .rect(cornerRadius: Theme.Radius.clip))
             .contentShape(.rect.inset(by: -Theme.Spacing.xs))
             .highPriorityGesture(
-                DragGesture(minimumDistance: 0)
+                // Measured in the tracks' space: the handle itself moves as the item is trimmed.
+                DragGesture(minimumDistance: 0, coordinateSpace: .named(TimelineTracksView.coordinateSpace))
                     .onChanged { onDrag($0.translation.width) }
-                    .onEnded { _ in onEnded() }
+                    .onEnded {
+                        onDrag($0.translation.width)
+                        onEnded()
+                    }
             )
             .accessibilityLabel(Text(label))
             .accessibilityIdentifier(id)
@@ -641,7 +658,11 @@ struct EditorTimelineView: View {
                 isScrollEnabled: !session.isDragging,
                 onScrub: { session.scrub(to: metrics.time(forOffset: $0)) },
                 onInteractionChanged: { if $0 { session.pause() } },
-                onLongPress: { state, point in reorder(state, trackX: point.x - inset, y: point.y) }
+                onLongPress: { state, point in reorder(state, trackX: point.x - inset, y: point.y) },
+                canScroll: { point in
+                    !TimelineLayout.grabsSelection(at: CGPoint(x: point.x - inset, y: point.y), in: session.timeline,
+                                                   metrics: metrics, selected: selectedIDs)
+                }
             ) {
                 TimelineTracksView(session: session, metrics: metrics, inset: inset, store: store, reordering: reordering,
                                    dropTarget: dropTrack.map { .track($0) }, onAddMedia: onAddMedia)
@@ -663,6 +684,10 @@ struct EditorTimelineView: View {
     }
 
     private var contentDuration: Double { session.timeline.duration }
+
+    private var selectedIDs: Set<UUID> {
+        Set([session.selectedClipID, session.selectedTextID, session.selectedAudioID].compactMap { $0 })
+    }
 
     /// Long-press a clip, then drag: other clips reflow as the finger passes their midpoints.
     private func reorder(_ state: UIGestureRecognizer.State, trackX: CGFloat, y: CGFloat) {

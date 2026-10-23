@@ -15,6 +15,8 @@ struct TimelineScrollView<Content: View>: UIViewRepresentable {
     /// Long press in content coordinates. Done in UIKit because a SwiftUI long
     /// press inside the hosted content stops the scroll view from panning.
     var onLongPress: (UIGestureRecognizer.State, CGPoint) -> Void = { _, _ in }
+    /// False where a touch in content coordinates should drag content instead of scrolling.
+    var canScroll: (CGPoint) -> Bool = { _ in true }
     @ViewBuilder let content: Content
 
     private static var jumpDistance: CGFloat { 40 }
@@ -39,6 +41,7 @@ struct TimelineScrollView<Content: View>: UIViewRepresentable {
     func updateUIView(_ view: HostingScrollView<Content>, context: Context) {
         context.coordinator.parent = self
         view.host.rootView = content
+        view.canScroll = canScroll
         view.contentWidth = contentWidth
         view.contentHeight = contentHeight
         view.isScrollEnabled = isScrollEnabled
@@ -95,6 +98,7 @@ struct TimelineScrollView<Content: View>: UIViewRepresentable {
 
 final class HostingScrollView<Content: View>: UIScrollView {
     let host: UIHostingController<Content>
+    var canScroll: (CGPoint) -> Bool = { _ in true }
 
     var contentWidth: CGFloat = 0 {
         didSet { if contentWidth != oldValue { setNeedsLayout() } }
@@ -114,6 +118,16 @@ final class HostingScrollView<Content: View>: UIScrollView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    /// Decides from where the touch began: by now the finger has already moved.
+    override func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+        if recognizer === panGestureRecognizer {
+            let location = panGestureRecognizer.location(in: self)
+            let translation = panGestureRecognizer.translation(in: self)
+            if !canScroll(CGPoint(x: location.x - translation.x, y: location.y - translation.y)) { return false }
+        }
+        return super.gestureRecognizerShouldBegin(recognizer)
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()

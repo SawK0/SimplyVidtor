@@ -478,6 +478,26 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testFastDragMovesTheSelectedOverlay() throws {
+        createProject()
+        tapTool("editor.tool.overlay")
+        let add = app.buttons["mediaPicker.add"]
+        XCTAssertTrue(add.waitForExistence(timeout: 3))
+        add.tap()
+        let overlay = app.descendants(matching: .any)["timeline.overlay.0"]
+        XCTAssertTrue(overlay.waitForExistence(timeout: 3))
+        XCTAssertTrue(overlay.isSelected)
+
+        // A quick flick with no pause: it moves the overlay, not the timeline.
+        let before = overlay.frame.minX - clip(0).frame.minX
+        // Near its left end: the overlay runs off screen, and the drag must stay on it.
+        let start = overlay.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5))
+        start.press(forDuration: 0, thenDragTo: start.withOffset(CGVector(dx: 80, dy: 0)), withVelocity: .fast, thenHoldForDuration: 0)
+        let moved = overlay.frame.minX - clip(0).frame.minX
+        XCTAssertGreaterThan(moved - before, 40, "The overlay moved along the main track")
+    }
+
+    @MainActor
     func testAddAndDeleteTrack() throws {
         createProject()
         tapTool("editor.tool.track")

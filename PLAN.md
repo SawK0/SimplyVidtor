@@ -168,7 +168,7 @@ Chunk 5: history
 - [ ] iPad pass: regular-width editor layout, Stage Manager / Split View window sizes, pointer and keyboard shortcuts (space = play/pause, ⌘Z / ⇧⌘Z)
 - [ ] Projects screen visuals from Figma
 - [ ] Hide the timeline while typing text so the preview isn't squeezed
-- [ ] Timeline drags: check the start of fast drags isn't swallowed by the scroll view
+- [x] Timeline drags: check the start of fast drags isn't swallowed by the scroll view
 - [ ] Filters and crop in timeline thumbnails and project covers
 
 ## Testing

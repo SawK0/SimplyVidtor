@@ -76,6 +76,40 @@ enum TimelineLayout {
         return nil
     }
 
+    /// Whether a touch at `point` (tracks' coordinates) lands on something it
+    /// drags: a selected overlay, text or audio item, or a selected main clip's
+    /// trim handles. The timeline mustn't start scrolling there, or a fast drag
+    /// scrolls before the item's drag gesture begins.
+    static func grabsSelection(at point: CGPoint, in timeline: Timeline, metrics: TimelineMetrics, selected: Set<UUID>) -> Bool {
+        guard !selected.isEmpty, let row = row(atY: point.y, in: timeline) else { return false }
+        let slop = Theme.Spacing.xs
+        func covers(_ range: Range<Double>) -> Bool {
+            point.x >= metrics.offset(for: range.lowerBound) - slop && point.x <= metrics.offset(for: range.upperBound) + slop
+        }
+        switch row {
+        case .main:
+            guard let index = timeline.clips.firstIndex(where: { selected.contains($0.id) }) else { return false }
+            let range = timeline.timeRange(ofClipAt: index)
+            let start = metrics.offset(for: range.lowerBound)
+            let end = metrics.offset(for: range.upperBound) - Theme.Size.clipGap
+            let handle = Theme.Size.trimHandleWidth + slop
+            return (point.x >= start - slop && point.x <= start + handle) || (point.x >= end - handle && point.x <= end + slop)
+        case .track(let track):
+            switch track.kind {
+            case .video:
+                return timeline.overlays.contains { $0.trackID == track.id && selected.contains($0.id) && covers($0.timeRange) }
+            case .text:
+                return timeline.textItems.contains {
+                    $0.trackID == track.id && selected.contains($0.id) && covers($0.timelineStart..<$0.timelineEnd)
+                }
+            case .audio:
+                return timeline.audioItems.contains {
+                    $0.trackID == track.id && selected.contains($0.id) && covers($0.timelineStart..<$0.timelineEnd)
+                }
+            }
+        }
+    }
+
     /// The editor shows the default rows plus up to two more; past that the timeline scrolls.
     static func visibleHeight(for timeline: Timeline) -> CGFloat {
         min(contentHeight(for: timeline), contentHeight(for: Timeline()) + 2 * Theme.Size.overlayTrackHeight)
