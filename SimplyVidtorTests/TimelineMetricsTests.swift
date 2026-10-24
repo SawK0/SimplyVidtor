@@ -40,6 +40,18 @@ struct TimelineMetricsTests {
         #expect(TimelineLayout.visibleHeight(for: timeline, tall) == TimelineLayout.visibleHeight(for: timeline, normal))
     }
 
+    @Test func separatorsSitBetweenEveryRow() {
+        var timeline = Timeline()
+        timeline.addTrack(.video)
+        let metrics = TimelineMetrics().rowsZoomed(by: 1.5)
+        let ys = TimelineLayout.separatorYs(for: timeline, metrics)
+        let rows = TimelineLayout.rows(of: timeline)
+        #expect(ys.count == rows.count, "Under the ruler and between each pair of rows")
+        for (above, below) in zip(ys, ys.dropFirst()) {
+            #expect(TimelineLayout.row(atY: above + 2, in: timeline, metrics) != TimelineLayout.row(atY: below + 2, in: timeline, metrics))
+        }
+    }
+
     @Test func zoomIsClamped() {
         let metrics = TimelineMetrics(pointsPerSecond: 100)
         #expect(metrics.zoomed(by: 2).pointsPerSecond == 200)

@@ -101,6 +101,18 @@ enum TimelineLayout {
         return nil
     }
 
+    /// The middle of each gap between rows (and under the ruler), for separator lines.
+    static func separatorYs(for timeline: Timeline, _ metrics: TimelineMetrics) -> [CGFloat] {
+        let gap = Theme.Spacing.xs
+        var y = Theme.Size.rulerHeight + gap / 2
+        var ys = [y]
+        for row in rows(of: timeline).dropLast() {
+            y += row.height(metrics) + gap
+            ys.append(y)
+        }
+        return ys
+    }
+
     /// Whether a touch at `point` (tracks' coordinates) lands on something it
     /// drags: a selected overlay, text or audio item, or a selected main clip's
     /// trim handles. The timeline mustn't start scrolling there, or a fast drag

@@ -57,6 +57,20 @@ struct TimelineTracksView: View {
                 .contentShape(.rect)
                 .onTapGesture(perform: deselect)
         }
+        .background(alignment: .topLeading) { separators }
+    }
+
+    /// A hairline in each gap between rows, across the whole timeline.
+    private var separators: some View {
+        Canvas { context, size in
+            var lines = Path()
+            for y in TimelineLayout.separatorYs(for: timeline, metrics) {
+                lines.addRect(CGRect(x: 0, y: y - Theme.Size.hairline / 2, width: size.width, height: Theme.Size.hairline))
+            }
+            context.fill(lines, with: .color(Theme.Palette.separator))
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private var clipTrack: some View {

@@ -169,6 +169,7 @@ Chunk 5: history
 - [ ] Projects screen visuals from Figma
 - [x] Hide the timeline while typing text so the preview isn't squeezed
 - [x] Timeline zoom both ways: pinch sideways zooms time, pinch up and down resizes the rows (60–200%); ⌘= / ⌘- and ⌥= / ⌥- on a hardware keyboard
+- [x] Hairline separators between timeline rows
 - [x] Timeline drags: check the start of fast drags isn't swallowed by the scroll view
 - [ ] Filters and crop in timeline thumbnails and project covers
 
