@@ -3,15 +3,13 @@ import Foundation
 /// The edit itself: the main video track (`clips`), overlay clips, text and
 /// audio on their tracks. Mutations clamp to valid values instead of failing.
 nonisolated struct Timeline: Codable, Hashable, Sendable {
-    /// The main track. With the magnet on, clips play back to back.
+    /// The main track, in time order. Clips keep the gaps between them (`Clip.gapBefore`).
     var clips: [Clip] = []
     var overlays: [OverlayClip] = []
     var audioItems: [AudioItem] = []
     var textItems: [TextItem] = []
     /// Visual tracks in drawing order (bottom to top), and audio tracks.
     var tracks: [Track] = Track.defaults
-    /// On: main-track clips stay back to back. Off: clips keep gaps (`Clip.gapBefore`).
-    var isMagnetic = true
     var format = ProjectFormat()
 
     /// `nil` matches the first clip's shape.
@@ -35,9 +33,9 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         clips.firstIndex { $0.id == id }
     }
 
-    /// Empty time before main-track clip `index`; always 0 with the magnet on.
+    /// Empty time before main-track clip `index`.
     func gap(beforeClipAt index: Int) -> Double {
-        isMagnetic || !clips.indices.contains(index) ? 0 : max(clips[index].gapBefore, 0)
+        clips.indices.contains(index) ? max(clips[index].gapBefore, 0) : 0
     }
 
     /// How long clip `index` and the next one play together. Never more than
@@ -94,8 +92,8 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         return overlayIndex(of: id).map { overlays[$0].timeRange }
     }
 
-    /// Edits a clip wherever it is. Main-track clips keep later clips in place
-    /// with the magnet off; overlays move off anything they now overlap.
+    /// Edits a clip wherever it is. Main-track clips keep later clips in place;
+    /// overlays move off anything they now overlap.
     mutating func modifyClip(_ id: Clip.ID, _ body: (inout Clip) -> Void) {
         if let index = index(ofClip: id) {
             let end = timeRange(ofClipAt: index).upperBound
@@ -107,9 +105,9 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         }
     }
 
-    /// Magnet off: absorbs a change in clip `index`'s end into the gap after it.
+    /// Absorbs a change in clip `index`'s end into the gap after it.
     private mutating func keepLaterClipsInPlace(after index: Int, oldEnd: Double) {
-        guard !isMagnetic, index + 1 < clips.count else { return }
+        guard index + 1 < clips.count else { return }
         let change = oldEnd - timeRange(ofClipAt: index).upperBound
         clips[index + 1].gapBefore = max(gap(beforeClipAt: index + 1) + change, 0)
     }
@@ -120,7 +118,7 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         let index = min(max(index, 0), clips.count)
         var newClips = newClips
         // In a gap, new clips take the gap's place and push the rest right.
-        if !isMagnetic, index < clips.count, !newClips.isEmpty {
+        if index < clips.count, !newClips.isEmpty {
             newClips[0].gapBefore = clips[index].gapBefore
             clips[index].gapBefore = 0
         }
@@ -134,13 +132,75 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         return offset >= Clip.minimumDuration && clips[index].duration - offset >= Clip.minimumDuration
     }
 
-    /// Where new clips go for a playhead at `time`: before the clip under it if
-    /// the playhead is in its first half, otherwise after it.
-    func insertionIndex(at time: Double) -> Int {
-        for (index, clip) in clips.enumerated() where time < startTime(ofClipAt: index) + clip.duration / 2 {
-            return index
+    /// Puts clips on the main track back to back from `time`. Landing on a
+    /// clip, they go before it (its first half) or after it. Later clips move
+    /// right only as far as they must; everything else stays where it is.
+    mutating func place(_ newClips: [Clip], at time: Double) {
+        guard !newClips.isEmpty else { return }
+        var start = max(time, 0)
+        var index = clips.count
+        for i in clips.indices {
+            let range = timeRange(ofClipAt: i)
+            if start < range.lowerBound {
+                index = i
+                break
+            }
+            if start < range.upperBound {
+                let before = start < range.lowerBound + clips[i].duration / 2
+                index = before ? i : i + 1
+                start = before ? range.lowerBound : range.upperBound
+                break
+            }
         }
-        return clips.count
+        var wanted = clips.indices.map { startTime(ofClipAt: $0) }
+        var next = start
+        for (offset, clip) in newClips.enumerated() {
+            wanted.insert(next, at: index + offset)
+            next += clip.duration
+        }
+        clips.insert(contentsOf: newClips, at: index)
+        // Each clip sits where it was wanted, or right after the one before it.
+        for i in clips.indices {
+            clips[i].gapBefore = 0
+            clips[i].gapBefore = max(wanted[i] - startTime(ofClipAt: i), 0)
+        }
+    }
+
+    /// Moves a main-track clip to start at `time` (see `place`). It loses its
+    /// transitions, since its neighbours change.
+    mutating func moveMainClip(_ id: Clip.ID, toStart time: Double) {
+        guard let index = index(ofClip: id) else { return }
+        var clip = clips[index]
+        clip.transition = nil
+        if index > 0 { clips[index - 1].transition = nil }
+        removeClip(id)
+        place([clip], at: time)
+    }
+
+    /// Edges of every item but `excluding`, for dragged items to snap to.
+    func snapTimes(excluding id: UUID?) -> [Double] {
+        var times: [Double] = [0]
+        for index in clips.indices where clips[index].id != id {
+            let range = timeRange(ofClipAt: index)
+            times += [range.lowerBound, range.upperBound]
+        }
+        for overlay in overlays where overlay.id != id { times += [overlay.timelineStart, overlay.timelineEnd] }
+        for item in textItems where item.id != id { times += [item.timelineStart, item.timelineEnd] }
+        for item in audioItems where item.id != id { times += [item.timelineStart, item.timelineEnd] }
+        return times
+    }
+
+    /// `start` moved so the item's start or end lands on the nearest of
+    /// `times` within `tolerance` seconds; unchanged if none is that close.
+    static func snapped(start: Double, duration: Double, to times: [Double], tolerance: Double) -> Double {
+        var best: (distance: Double, start: Double)?
+        for time in times {
+            for candidate in [time, time - duration] {
+                let distance = abs(candidate - start)
+                if distance <= tolerance, distance < (best?.distance ?? .infinity) { best = (distance, candidate) }
+            }
+        }
+        return best?.start ?? start
     }
 
     /// Splits the main-track clip under `time`. Returns the id of the new
@@ -187,16 +247,15 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         return (left, right)
     }
 
-    /// Moves the clip's in-point, keeping its out-point fixed. Overlays, and
-    /// main clips with the magnet off, keep their end where it is on the timeline.
+    /// Moves the clip's in-point, keeping its out-point fixed on the timeline.
     mutating func trimStart(ofClip id: Clip.ID, toSource newStart: Double) {
         if let index = index(ofClip: id) {
             let clip = clips[index]
             let latest = clip.sourceEnd - Clip.minimumDuration * clip.speed
-            // With the magnet off, a clip can only grow into the gap before it.
-            let earliest = isMagnetic ? 0 : max(clip.sourceStart - gap(beforeClipAt: index) * clip.speed, 0)
+            // A clip can only grow into the gap before it.
+            let earliest = max(clip.sourceStart - gap(beforeClipAt: index) * clip.speed, 0)
             let start = min(max(newStart, earliest), latest)
-            if !isMagnetic { clips[index].gapBefore = gap(beforeClipAt: index) + (start - clip.sourceStart) / clip.speed }
+            clips[index].gapBefore = gap(beforeClipAt: index) + (start - clip.sourceStart) / clip.speed
             clips[index].sourceStart = start
             clips[index].sourceDuration = clip.sourceEnd - start
         } else if let index = overlayIndex(of: id) {
@@ -217,8 +276,8 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         guard let clip = self[clip: id] else { return }
         let earliest = clip.sourceStart + Clip.minimumDuration * clip.speed
         var latest = clip.mediaDuration ?? .infinity
-        // With the magnet off, a main clip can only grow into the gap after it.
-        if !isMagnetic, let index = index(ofClip: id), index + 1 < clips.count {
+        // A main clip can only grow into the gap after it.
+        if let index = index(ofClip: id), index + 1 < clips.count {
             latest = min(latest, clip.sourceEnd + gap(beforeClipAt: index + 1) * clip.speed)
         }
         let end = min(max(newEnd, earliest), latest)
@@ -428,25 +487,15 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
         return copy.clip.id
     }
 
-    /// Removes a clip from any track. With the magnet off, later main clips stay put.
+    /// Removes a clip from any track. Later main clips stay put.
     mutating func removeClip(_ id: Clip.ID) {
-        if let index = index(ofClip: id), !isMagnetic, index + 1 < clips.count {
+        if let index = index(ofClip: id), index + 1 < clips.count {
             let nextStart = startTime(ofClipAt: index + 1)
             let previousEnd = index > 0 ? timeRange(ofClipAt: index - 1).upperBound : 0
             clips[index + 1].gapBefore = max(nextStart - previousEnd, 0)
         }
         clips.removeAll { $0.id == id }
         overlays.removeAll { $0.id == id }
-    }
-
-    /// Where a dragged clip should land when the finger is at `time` (in this
-    /// timeline's layout): after every other clip whose midpoint is left of it.
-    func reorderDestination(movingClip id: Clip.ID, toTime time: Double) -> Int {
-        var destination = 0
-        for (index, clip) in clips.enumerated() where clip.id != id {
-            if startTime(ofClipAt: index) + clip.duration / 2 < time { destination += 1 }
-        }
-        return destination
     }
 
     /// Moves a main-track clip so it ends up at `destination` in the resulting array.
@@ -459,7 +508,7 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
 
 nonisolated extension Timeline {
     private enum CodingKeys: String, CodingKey {
-        case clips, overlays, audioItems, textItems, tracks, isMagnetic, format
+        case clips, overlays, audioItems, textItems, tracks, format
         /// Saved before `format`; read only.
         case aspectRatio
     }
@@ -474,7 +523,6 @@ nonisolated extension Timeline {
             audioItems: try c.decodeIfPresent([AudioItem].self, forKey: .audioItems) ?? [],
             textItems: try c.decodeIfPresent([TextItem].self, forKey: .textItems) ?? [],
             tracks: try c.decodeIfPresent([Track].self, forKey: .tracks) ?? Track.defaults,
-            isMagnetic: try c.decodeIfPresent(Bool.self, forKey: .isMagnetic) ?? true,
             format: try c.decodeIfPresent(ProjectFormat.self, forKey: .format) ?? ProjectFormat(aspectRatio: legacyAspect)
         )
         repairTracks()
@@ -487,7 +535,6 @@ nonisolated extension Timeline {
         try c.encode(audioItems, forKey: .audioItems)
         try c.encode(textItems, forKey: .textItems)
         try c.encode(tracks, forKey: .tracks)
-        try c.encode(isMagnetic, forKey: .isMagnetic)
         try c.encode(format, forKey: .format)
     }
 }

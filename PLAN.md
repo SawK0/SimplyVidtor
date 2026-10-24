@@ -153,10 +153,10 @@ Chunk 5: history
 
 ### M9: Layers
 - [x] Track model (`Tracks.swift`): the main video track plus any number of overlay video, text and audio tracks; higher tracks draw on top. Items refer to tracks by id; an item landing on another hops to the nearest free track (or a new one). Clip tools find clips on any track (`Timeline[clip:]`, `modifyClip`)
-- [x] Main track magnet (toolbar): on (default) keeps clips back to back; off lets clips sit anywhere with gaps (long press a clip and drag it; trims, speed changes and deletes leave later clips in place). Turning it back on closes gaps. Only touching clips can have a transition
+- [x] Free main track: clips sit anywhere with gaps (long press a clip and drag it; trims, speed changes and deletes leave other clips in place). A clip dropped on another goes before or after it and pushes later clips right. Dragged clips, overlays, text and audio snap to nearby edges and the playhead. Only touching clips can have a transition. (Replaced an earlier magnet toggle.)
 - [x] Overlay clips (picture in picture) render with their own transform, looks and keyframes, stacked with text in track order; main-track gaps render black
 - [x] Overlay clips in the editor: the Overlay tool adds picked clips at the playhead on a free overlay track; every clip tool (speed, filters, transform, keyframes, split, duplicate, delete) works on them
-- [x] Timeline rows per track (rows below the main track in drawing order, then audio); the timeline grows with tracks and scrolls vertically past two extra rows. Drag text, audio and overlays sideways in time and up or down to another track of the same kind
+- [x] Timeline rows per track, Premiere style: video and text tracks above the main track (the top row draws on top), audio below; the timeline grows with tracks and scrolls vertically past two extra rows. Drag text, audio and overlays sideways in time and up or down to another track of the same kind
 - [x] Move clips between the main track and video tracks: long press a main clip and drag it onto a video track; drag a selected overlay up onto the main track. Long press a video track for Add Media Here; the Overlay tool adds next to the selected overlay
 - [x] Track menu in the toolbar adds an empty video, text or audio track; long press an empty part of a row to bring it forward, send it backward or delete it
 - [x] Warn when more than 4 videos (main, transitions, overlays) play at one instant (`Timeline.peakVideoCount`); the warning jumps to the spot. The limit is a guess until it's measured on devices

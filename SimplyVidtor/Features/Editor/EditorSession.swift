@@ -246,19 +246,18 @@ final class EditorSession {
         await update { $0.removeClip(id) }
     }
 
-    /// Inserts clips at the playhead (see `Timeline.insertionIndex`) and moves
-    /// the playhead to the first of them. Audio starts at the playhead.
+    /// Places clips at the playhead (see `Timeline.place`) and moves the
+    /// playhead to the first of them. Audio starts at the playhead.
     func insertAtPlayhead(_ clips: [Clip], audio: AudioItem?) async {
-        let index = timeline.insertionIndex(at: currentTime)
         let playhead = currentTime
         await update { timeline in
-            timeline.insert(clips, at: index)
+            timeline.place(clips, at: playhead)
             if var audio {
                 audio.timelineStart = playhead
                 timeline.addAudio(audio)
             }
         }
-        if !clips.isEmpty { await seek(to: timeline.startTime(ofClipAt: index)) }
+        if let first = clips.first, let range = timeline.timeRange(ofClip: first.id) { await seek(to: range.lowerBound) }
     }
 
     /// Places clips one after another from the playhead on `track` (or a free

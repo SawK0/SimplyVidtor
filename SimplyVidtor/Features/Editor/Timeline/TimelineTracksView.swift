@@ -7,8 +7,6 @@ struct TimelineTracksView: View {
     let metrics: TimelineMetrics
     let inset: CGFloat
     let store: MediaStore
-    /// The clip being dragged to a new position, and the finger in track coordinates.
-    let reordering: (id: Clip.ID, x: CGFloat, y: CGFloat)?
     /// The row a main-track clip would drop onto.
     var dropTarget: TimelineLayout.Row?
     /// Opens the picker to add clips to a video track.
@@ -17,9 +15,6 @@ struct TimelineTracksView: View {
     /// Drags read finger positions here, to find the row under them.
     static let coordinateSpace = "timelineTracks"
 
-    /// While trimming a clip's start, clips from that index on are drawn shifted
-    /// by this much so the clip's right edge stays put under the finger.
-    @State private var leadingTrim: (index: Int, shift: CGFloat)?
     /// The selected text as it was when the current timeline drag began.
     @State private var textDragStart: TextItem?
     /// The selected audio item as it was when the current drag began.
@@ -39,15 +34,17 @@ struct TimelineTracksView: View {
                     Task { await session.seek(to: metrics.time(forOffset: location.x)) }
                 }
                 .accessibilityIdentifier("timeline.ruler")
-            clipTrack
-                .frame(height: Theme.Size.timelineClipHeight)
-                .background(dropHighlight(dropTarget == .main || overlayDropsOnMain))
-                .zIndex(1)
-            // Each row draws over the rows above it.
-            ForEach(TimelineLayout.displayTracks(of: timeline)) { track in
-                row(for: track)
-                    .frame(height: TimelineLayout.height(of: track.kind))
-                    .background(dropHighlight(dropTarget == .track(track)))
+            ForEach(TimelineLayout.rows(of: timeline), id: \.self) { row in
+                switch row {
+                case .main:
+                    clipTrack
+                        .frame(height: row.height)
+                        .background(dropHighlight(dropTarget == .main || overlayDropsOnMain))
+                case .track(let track):
+                    self.row(for: track)
+                        .frame(height: row.height)
+                        .background(dropHighlight(dropTarget == .track(track)))
+                }
             }
         }
         .coordinateSpace(.named(Self.coordinateSpace))
@@ -66,13 +63,13 @@ struct TimelineTracksView: View {
         HStack(spacing: 0) {
             ForEach(Array(timeline.clips.enumerated()), id: \.element.id) { index, clip in
                 clipView(clip, at: index)
-                    // Gaps (magnet off) push clips right; clips joined by a transition overlap.
+                    // Gaps push clips right; clips joined by a transition overlap.
                     .padding(.leading, metrics.width(of: timeline.gap(beforeClipAt: index)))
                     .padding(.trailing, -metrics.width(of: timeline.overlap(afterClipAt: index)))
             }
         }
         .overlay(alignment: .leading) {
-            if session.selectedClipID == nil, reordering == nil, leadingTrim == nil {
+            if session.selectedClipID == nil {
                 ForEach(Array(timeline.clips.dropLast().enumerated()), id: \.element.id) { index, clip in
                     // Only clips that touch can have a transition.
                     if timeline.gap(beforeClipAt: index + 1) == 0 {
@@ -113,11 +110,10 @@ struct TimelineTracksView: View {
 
     private func clipView(_ clip: Clip, at index: Int) -> some View {
         let isSelected = session.selectedClipID == clip.id
-        let isReordering = reordering?.id == clip.id
         let width = metrics.width(of: clip.duration)
         return FilmstripView(clip: clip, width: width, store: store)
             .overlay {
-                if isSelected && !isReordering {
+                if isSelected {
                     SelectionFrame(
                         onLeadingDrag: { trim(clip.id, at: index, leading: true, by: $0) },
                         onTrailingDrag: { trim(clip.id, at: index, leading: false, by: $0) },
@@ -134,11 +130,6 @@ struct TimelineTracksView: View {
                         .frame(height: Theme.Size.keyframeMark * 2)
                 }
             }
-            .offset(x: displayOffset(for: clip, at: index, width: width),
-                    y: isReordering ? (reordering?.y ?? 0) - Self.mainRowCenter : 0)
-            .scaleEffect(isReordering ? 1.06 : 1)
-            .shadow(color: isReordering ? Theme.Palette.shadow : .clear, radius: 8)
-            .zIndex(isReordering ? 1 : 0)
             .onTapGesture { session.select(clip.id) }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Clip \(index + 1)")
@@ -150,48 +141,34 @@ struct TimelineTracksView: View {
             .accessibilityIdentifier("timeline.clip.\(index)")
     }
 
-    private static let mainRowCenter = Theme.Size.rulerHeight + Theme.Spacing.xs + Theme.Size.timelineClipHeight / 2
-
-    private func displayOffset(for clip: Clip, at index: Int, width: CGFloat) -> CGFloat {
-        if let reordering, reordering.id == clip.id {
-            return reordering.x - (metrics.offset(for: timeline.startTime(ofClipAt: index)) + width / 2)
-        }
-        if let leadingTrim, index >= leadingTrim.index { return leadingTrim.shift }
-        return 0
-    }
-
     // MARK: - Trim
 
     private func trim(_ id: Clip.ID, at index: Int, leading: Bool, by translation: CGFloat) {
         session.beginInteractiveEdit()
         let delta = Double(translation / metrics.pointsPerSecond)
-        var baseWidth: CGFloat = 0
         session.updateInteractiveEdit { timeline in
             guard let i = timeline.index(ofClip: id) else { return }
             let clip = timeline.clips[i]
-            baseWidth = metrics.width(of: clip.duration)
             if leading {
                 timeline.trimStart(ofClip: id, toSource: clip.sourceStart + delta * clip.speed)
             } else {
                 timeline.trimEnd(ofClip: id, toSource: clip.sourceEnd + delta * clip.speed)
             }
         }
-        // With the magnet off the clip's end stays put by itself.
-        if leading, timeline.isMagnetic, let i = timeline.index(ofClip: id) {
-            leadingTrim = (index, baseWidth - metrics.width(of: timeline.clips[i].duration))
-        }
     }
 
     private func finishTrim() {
-        leadingTrim = nil
         Task { await session.endInteractiveEdit() }
     }
 
     // MARK: - Reorder
 
+    /// Moves a clip before (or after) the neighbour at `destination`, as a drag onto it would.
     private func move(_ id: Clip.ID, to destination: Int) {
-        guard destination >= 0, destination < timeline.clips.count else { return }
-        Task { await session.update { $0.moveClip(id, to: destination) } }
+        guard destination >= 0, destination < timeline.clips.count, let index = timeline.index(ofClip: id) else { return }
+        let neighbour = timeline.timeRange(ofClipAt: destination)
+        let start = destination < index ? neighbour.lowerBound : neighbour.upperBound
+        Task { await session.update { $0.moveMainClip(id, toStart: start) } }
     }
 
     private func accessibilityValue(for clip: Clip) -> String {
@@ -263,13 +240,15 @@ struct TimelineTracksView: View {
         session.selectTransition(after: nil)
     }
 
-    /// The same-kind track `rows` rows away from `trackID` (by a vertical drag of `dy` points).
+    /// The same-kind track a vertical drag of `dy` points reaches from `trackID`.
     private func track(_ trackID: Track.ID, movedBy dy: CGFloat) -> Track.ID {
         guard let kind = timeline.track(trackID)?.kind else { return trackID }
         let sameKind = timeline.tracks.filter { $0.kind == kind }
         guard let index = sameKind.firstIndex(where: { $0.id == trackID }) else { return trackID }
         let pitch = TimelineLayout.height(of: kind) + Theme.Spacing.xs
-        let target = min(max(index + Int((dy / pitch).rounded()), 0), sameKind.count - 1)
+        // Visual tracks are shown top-down, so dragging up goes higher in the drawing order.
+        let rows = Int((dy / pitch).rounded()) * (kind == .audio ? 1 : -1)
+        let target = min(max(index + rows, 0), sameKind.count - 1)
         return sameKind[target].id
     }
 
@@ -337,8 +316,16 @@ struct TimelineTracksView: View {
         session.beginInteractiveEdit()
         session.updateInteractiveEdit { timeline in
             guard let index = timeline.overlayIndex(of: id) else { return }
-            timeline.moveOverlay(id, toStart: timeline.overlays[index].timelineStart + delta, track: target)
+            let overlay = timeline.overlays[index]
+            let start = snapped(overlay.timelineStart + delta, duration: overlay.clip.duration, excluding: id, in: timeline)
+            timeline.moveOverlay(id, toStart: start, track: target)
         }
+    }
+
+    /// `start` snapped to the edges of other items and the playhead.
+    private func snapped(_ start: Double, duration: Double, excluding id: UUID, in timeline: Timeline) -> Double {
+        Timeline.snapped(start: max(start, 0), duration: duration, to: timeline.snapTimes(excluding: id) + [session.currentTime],
+                         tolerance: metrics.snapTolerance)
     }
 
     private func finishOverlayMove(_ id: Clip.ID, by translation: CGFloat) {
@@ -429,7 +416,8 @@ struct TimelineTracksView: View {
     private func moveText(_ item: TextItem, by translation: CGSize) {
         // `start` is the item as the drag began.
         dragText(item, by: translation.width) { start, delta in
-            var moved = start.moved(toStart: start.timelineStart + delta)
+            let time = snapped(start.timelineStart + delta, duration: start.duration, excluding: start.id, in: timeline)
+            var moved = start.moved(toStart: time)
             moved.trackID = self.track(start.trackID, movedBy: translation.height)
             return moved
         }
@@ -489,7 +477,9 @@ struct TimelineTracksView: View {
 
     private func moveAudio(_ item: AudioItem, by translation: CGSize) {
         dragAudio(item, by: translation.width) { start, delta in
-            var moved = start.moved(toStart: start.timelineStart + delta)
+            let duration = start.timelineEnd - start.timelineStart
+            let time = snapped(start.timelineStart + delta, duration: duration, excluding: start.id, in: timeline)
+            var moved = start.moved(toStart: time)
             moved.trackID = self.track(start.trackID, movedBy: translation.height)
             return moved
         }
@@ -641,13 +631,12 @@ struct EditorTimelineView: View {
 
     @State private var metrics = TimelineMetrics()
     @State private var zoomBase: TimelineMetrics?
-    @State private var reordering: (id: Clip.ID, x: CGFloat, y: CGFloat)?
     /// Where a long-pressed main-track clip would land: another video track, or nil.
     @State private var dropTrack: Track?
     var onAddMedia: (Track.ID) -> Void = { _ in }
     var isHidden = false
-    /// Magnet off: the clip being slid in time, and where the finger started.
-    @State private var sliding: (id: Clip.ID, startTime: Double)?
+    /// The main-track clip being dragged, and the time under the finger when it started.
+    @State private var dragging: (id: Clip.ID, startTime: Double)?
 
     var body: some View {
         GeometryReader { geo in
@@ -660,13 +649,13 @@ struct EditorTimelineView: View {
                 isHidden: isHidden,
                 onScrub: { session.scrub(to: metrics.time(forOffset: $0)) },
                 onInteractionChanged: { if $0 { session.pause() } },
-                onLongPress: { state, point in reorder(state, trackX: point.x - inset, y: point.y) },
+                onLongPress: { state, point in dragMainClip(state, trackX: point.x - inset, y: point.y) },
                 canScroll: { point in
                     !TimelineLayout.grabsSelection(at: CGPoint(x: point.x - inset, y: point.y), in: session.timeline,
                                                    metrics: metrics, selected: selectedIDs)
                 }
             ) {
-                TimelineTracksView(session: session, metrics: metrics, inset: inset, store: store, reordering: reordering,
+                TimelineTracksView(session: session, metrics: metrics, inset: inset, store: store,
                                    dropTarget: dropTrack.map { .track($0) }, onAddMedia: onAddMedia)
             }
             .overlay { playhead }
@@ -691,41 +680,48 @@ struct EditorTimelineView: View {
         Set([session.selectedClipID, session.selectedTextID, session.selectedAudioID].compactMap { $0 })
     }
 
-    /// Long-press a clip, then drag: other clips reflow as the finger passes their midpoints.
-    private func reorder(_ state: UIGestureRecognizer.State, trackX: CGFloat, y: CGFloat) {
+    /// Long-press a main-track clip, then drag: along the track (snapping to
+    /// nearby edges and pushing later clips aside if it lands on them), or onto a video track.
+    private func dragMainClip(_ state: UIGestureRecognizer.State, trackX: CGFloat, y: CGFloat) {
         let time = metrics.time(forOffset: trackX)
-        if !session.timeline.isMagnetic || sliding != nil {
-            slide(state, time: time, y: y)
-            return
-        }
         switch state {
         case .began:
             guard let id = mainClip(at: time, y: y) else { return }
             session.beginInteractiveEdit()
             session.selectedClipID = nil
-            reordering = (id, trackX, y)
+            dragging = (id, time)
         case .changed:
-            guard let id = reordering?.id else { return }
-            reordering = (id, trackX, y)
+            guard let dragging else { return }
             dropTrack = videoTrack(atY: y)
-            // Over another track the clip just follows the finger; the main track keeps its order.
-            guard dropTrack == nil else { return }
+            let delta = time - dragging.startTime
+            let onMain = dropTrack == nil
             session.updateInteractiveEdit { timeline in
-                timeline.moveClip(id, to: timeline.reorderDestination(movingClip: id, toTime: time))
+                // Over a video track it stays put until the finger lifts.
+                guard onMain, let start = snappedStart(of: dragging.id, movedBy: delta, in: timeline) else { return }
+                timeline.moveMainClip(dragging.id, toStart: start)
             }
         case .ended, .cancelled, .failed:
-            guard let id = reordering?.id else { return }
-            if state == .ended, let track = dropTrack, let clip = session.timeline[clip: id] {
-                // The clip is drawn centred on the finger.
-                let start = time - clip.duration / 2
-                session.updateInteractiveEdit { $0.moveToOverlay(id, track: track.id, start: start) }
+            guard let dragging else { return }
+            if state == .ended, let track = dropTrack {
+                let delta = time - dragging.startTime
+                session.updateInteractiveEdit { timeline in
+                    guard let start = snappedStart(of: dragging.id, movedBy: delta, in: timeline) else { return }
+                    timeline.moveToOverlay(dragging.id, track: track.id, start: start)
+                }
             }
-            reordering = nil
+            self.dragging = nil
             dropTrack = nil
             Task { await session.endInteractiveEdit() }
         default:
             break
         }
+    }
+
+    /// Where a clip moved by `delta` seconds would start, snapped to nearby edges and the playhead.
+    private func snappedStart(of id: Clip.ID, movedBy delta: Double, in timeline: Timeline) -> Double? {
+        guard let clip = timeline[clip: id], let range = timeline.timeRange(ofClip: id) else { return nil }
+        return Timeline.snapped(start: max(range.lowerBound + delta, 0), duration: clip.duration,
+                                to: timeline.snapTimes(excluding: id) + [session.currentTime], tolerance: metrics.snapTolerance)
     }
 
     /// The main-track clip under a long press, if it began on the main row.
@@ -739,40 +735,6 @@ struct EditorTimelineView: View {
     private func videoTrack(atY y: CGFloat) -> Track? {
         guard case .track(let track) = TimelineLayout.row(atY: y, in: session.timeline), track.kind == .video else { return nil }
         return track
-    }
-
-    /// Magnet off: long-press a clip, then drag it along the track (it stops at
-    /// its neighbours) or down onto a video track.
-    private func slide(_ state: UIGestureRecognizer.State, time: Double, y: CGFloat) {
-        switch state {
-        case .began:
-            guard let id = mainClip(at: time, y: y) else { return }
-            session.beginInteractiveEdit()
-            session.selectedClipID = nil
-            sliding = (id, time)
-        case .changed:
-            guard let sliding else { return }
-            dropTrack = videoTrack(atY: y)
-            let delta = time - sliding.startTime
-            session.updateInteractiveEdit { timeline in
-                guard let range = timeline.timeRange(ofClip: sliding.id) else { return }
-                timeline.slideClip(sliding.id, toStart: range.lowerBound + delta)
-            }
-        case .ended, .cancelled, .failed:
-            guard let sliding else { return }
-            if state == .ended, let track = dropTrack {
-                let delta = time - sliding.startTime
-                session.updateInteractiveEdit { timeline in
-                    guard let range = timeline.timeRange(ofClip: sliding.id) else { return }
-                    timeline.moveToOverlay(sliding.id, track: track.id, start: range.lowerBound + delta)
-                }
-            }
-            self.sliding = nil
-            dropTrack = nil
-            Task { await session.endInteractiveEdit() }
-        default:
-            break
-        }
     }
 
     private var playhead: some View {

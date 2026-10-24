@@ -361,7 +361,7 @@ final class SimplyVidtorUITests: XCTestCase {
         XCTAssertTrue(second.waitForExistence(timeout: 3), "Both start at the playhead, so the second gets a new track")
         let one = app.descendants(matching: .any)["timeline.text.0"].frame
         let two = app.descendants(matching: .any)["timeline.text.1"].frame
-        XCTAssertGreaterThan(two.minY, one.maxY - 1, "Drawn on the row below")
+        XCTAssertLessThan(two.maxY, one.minY + 1, "Drawn on top, so shown on the row above")
     }
 
     @MainActor
@@ -390,25 +390,23 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
-    func testMagnetOffLetsClipsLeaveGaps() throws {
+    func testMovingAClipLeavesAGapAndSnapsBack() throws {
         createProject()
-        let magnet = app.buttons["editor.tool.magnet"]
-        tapTool("editor.tool.magnet")
-        XCTAssertEqual(magnet.label, "Magnet off")
-
         // Long press the clip and drag it right: it leaves a gap at the start.
         let clip = app.descendants(matching: .any)["timeline.clip.0"]
+        XCTAssertTrue(clip.waitForExistence(timeout: 3))
         let before = clip.frame.minX
         let grab = clip.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5))
         grab.press(forDuration: 0.6, thenDragTo: grab.withOffset(CGVector(dx: 80, dy: 0)))
         let timecode = app.staticTexts["editor.timecode"]
         expectation(for: NSPredicate(format: "NOT (label ENDSWITH '/ 00:05.0')"), evaluatedWith: timecode)
         waitForExpectations(timeout: 3)
-        XCTAssertGreaterThan(clip.frame.minX, before + 40)
+        let moved = clip.frame.minX - before
+        XCTAssertGreaterThan(moved, 40)
 
-        // Turning the magnet back on closes the gap.
-        tapTool("editor.tool.magnet")
-        XCTAssertEqual(magnet.label, "Magnet on")
+        // Dragging it back to just short of the start snaps it there.
+        let regrab = clip.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5))
+        regrab.press(forDuration: 0.6, thenDragTo: regrab.withOffset(CGVector(dx: -(moved - 5), dy: 0)))
         expectation(for: NSPredicate(format: "label ENDSWITH '/ 00:05.0'"), evaluatedWith: timecode)
         waitForExpectations(timeout: 3)
     }
@@ -443,16 +441,17 @@ final class SimplyVidtorUITests: XCTestCase {
         let row = app.descendants(matching: .any)["timeline.track.video.0"]
         XCTAssertTrue(row.waitForExistence(timeout: 3))
 
-        // Long press the first clip and drag it down onto the video track.
+        // Long press the first clip and drag it up onto the video track.
         let grab = clip(0).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        let below = app.coordinate(withNormalizedOffset: .zero)
+        let above = app.coordinate(withNormalizedOffset: .zero)
             .withOffset(CGVector(dx: clip(0).frame.midX, dy: row.frame.midY))
-        grab.press(forDuration: 0.6, thenDragTo: below, withVelocity: .slow, thenHoldForDuration: 0.2)
+        XCTAssertLessThan(row.frame.midY, clip(0).frame.midY, "Video tracks sit above the main track")
+        grab.press(forDuration: 0.6, thenDragTo: above, withVelocity: .slow, thenHoldForDuration: 0.2)
         let overlay = app.descendants(matching: .any)["timeline.overlay.0"]
         XCTAssertTrue(overlay.waitForExistence(timeout: 3), "Moved onto the video track")
         XCTAssertFalse(clip(1).exists, "One clip left on the main track")
 
-        // Select it and drag it back up onto the main track.
+        // Select it and drag it back down onto the main track.
         overlay.tap()
         let start = overlay.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         let main = app.coordinate(withNormalizedOffset: .zero)

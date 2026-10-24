@@ -12,7 +12,7 @@ struct TrackTests {
         let timeline = try JSONDecoder().decode(Timeline.self, from: Data(json.utf8))
         #expect(timeline.tracks == Track.defaults)
         #expect(timeline.textItems[0].trackID == Track.firstText.id)
-        #expect(timeline.isMagnetic && timeline.overlays.isEmpty)
+        #expect(timeline.overlays.isEmpty)
     }
 
     @Test func itemsOnMissingTracksAreRepaired() throws {
@@ -126,44 +126,40 @@ struct TrackTests {
         #expect(timeline.overlays[0].trackID != timeline.overlays[1].trackID)
     }
 
-    // MARK: - Magnet
+    // MARK: - Main track gaps
 
-    private func unmagnetized() -> Timeline {
-        var timeline = Timeline(clips: [video(2), video(2), video(2)])
-        timeline.setMagnetic(false)
-        return timeline
+    private func threeClips() -> Timeline {
+        Timeline(clips: [video(2), video(2), video(2)])
     }
 
-    /// Slides the last clip to 5 s, then the middle one to 3 s: gaps at 2...3 and 5...5.
+    /// Moves the last clip to 5 s, then the middle one to 3 s: a gap at 2...3.
     private func spaced() -> Timeline {
-        var timeline = unmagnetized()
-        timeline.slideClip(timeline.clips[2].id, toStart: 5)
-        timeline.slideClip(timeline.clips[1].id, toStart: 3)
+        var timeline = threeClips()
+        timeline.moveMainClip(timeline.clips[2].id, toStart: 5)
+        timeline.moveMainClip(timeline.clips[1].id, toStart: 3)
         return timeline
     }
 
-    @Test func slidingAClipLeavesAGapAndKeepsLaterClips() {
+    @Test func movingAClipLeavesAGapAndKeepsOtherClips() {
         var timeline = spaced()
         #expect(timeline.timeRange(ofClipAt: 1) == 3..<5)
         #expect(timeline.timeRange(ofClipAt: 2) == 5..<7)
-        timeline.slideClip(timeline.clips[1].id, toStart: 9)
-        #expect(timeline.timeRange(ofClipAt: 1) == 3..<5, "Can't slide into the next clip")
-        timeline.slideClip(timeline.clips[1].id, toStart: 0)
-        #expect(timeline.timeRange(ofClipAt: 1) == 2..<4, "Nor into the previous one")
-        #expect(timeline.clipIndex(at: 4.5) == nil, "Nothing plays in the gap")
-        #expect(timeline.videoDuration == 7)
+        timeline.moveMainClip(timeline.clips[1].id, toStart: 9)
+        #expect(timeline.timeRange(ofClipAt: 1) == 5..<7, "The others stay put")
+        #expect(timeline.timeRange(ofClipAt: 2) == 9..<11)
+        #expect(timeline.clipIndex(at: 4) == nil, "Nothing plays in the gap")
     }
 
     @Test func gapsBlockTransitions() {
-        var timeline = unmagnetized()
+        var timeline = threeClips()
         timeline.setTransition(ClipTransition(kind: .crossfade, duration: 0.5), afterClip: timeline.clips[1].id)
         #expect(timeline.overlap(afterClipAt: 1) == 0.5)
-        timeline.slideClip(timeline.clips[2].id, toStart: 6)
+        timeline.trimEnd(ofClip: timeline.clips[1].id, toSource: 1.5)
         #expect(timeline.overlap(afterClipAt: 1) == 0)
     }
 
-    @Test func magnetOffEditsKeepLaterClipsInPlace() {
-        var timeline = unmagnetized()
+    @Test func editsKeepLaterClipsInPlace() {
+        var timeline = threeClips()
         let first = timeline.clips[0].id
         timeline.trimEnd(ofClip: first, toSource: 1)
         #expect(timeline.timeRange(ofClipAt: 1) == 2..<4, "Trimming the end leaves a gap")
@@ -175,18 +171,13 @@ struct TrackTests {
         #expect(timeline.timeRange(ofClipAt: 1) == 4..<6, "Deleting leaves the gap")
     }
 
-    @Test func magnetOnClosesGaps() {
+    @Test func placingInAGapPushesLaterClipsOnlyIfItDoesNotFit() {
         var timeline = spaced()
-        timeline.setMagnetic(true)
-        #expect(timeline.timeRange(ofClipAt: 1) == 2..<4)
-        #expect(timeline.clips.allSatisfy { $0.gapBefore == 0 })
-    }
-
-    @Test func insertingIntoAGapPushesLaterClips() {
-        var timeline = spaced()
-        timeline.insert([video(1)], at: 1)
-        #expect(timeline.timeRange(ofClipAt: 1) == 3..<4, "Takes the gap's place")
-        #expect(timeline.timeRange(ofClipAt: 2) == 4..<6)
+        timeline.place([video(1)], at: 2)
+        #expect(timeline.timeRange(ofClipAt: 1) == 2..<3 && timeline.timeRange(ofClipAt: 2) == 3..<5, "Fits the gap")
+        timeline = spaced()
+        timeline.place([video(1.5)], at: 2)
+        #expect(timeline.timeRange(ofClipAt: 2) == 3.5..<5.5 && timeline.timeRange(ofClipAt: 3) == 5.5..<7.5)
     }
 
     @Test func peakVideoCountCountsMainTransitionsAndOverlays() {
@@ -215,12 +206,13 @@ struct TrackTests {
 
         timeline.moveToMain(id, at: 3.5)
         #expect(timeline.overlays.isEmpty)
-        #expect(timeline.index(ofClip: id) == 2, "Inserted after the clip under 3.5 s")
+        // The transition had pulled the others 0.5 s left: 1.5..<3.5 and 3.5..<5.5.
+        #expect(timeline.index(ofClip: id) == 1, "Placed before the clip starting at 3.5 s")
+        #expect(timeline.timeRange(ofClip: id) == 3.5..<5.5 && timeline.timeRange(ofClipAt: 2) == 5.5..<7.5, "which moves aside")
     }
 
-    @Test func movingAClipOffTheMainTrackKeepsGapsWithTheMagnetOff() {
-        var timeline = Timeline(clips: [video(2), video(2), video(2)])
-        timeline.setMagnetic(false)
+    @Test func movingAClipOffTheMainTrackLeavesAGap() {
+        var timeline = threeClips()
         let track = timeline.addTrack(.video)
         timeline.moveToOverlay(timeline.clips[1].id, track: track, start: 0)
         #expect(timeline.timeRange(ofClipAt: 1) == 4..<6, "The last clip stays put")

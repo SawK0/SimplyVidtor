@@ -72,11 +72,11 @@ struct KeyframeTests {
         var timeline = Timeline(clips: [clip])
         timeline.trimStart(ofClip: clip.id, toSource: 1)
         timeline.setSpeed(2, ofClip: clip.id)
-        // Timeline 0.5 s is now source 2 s: halfway through the zoom.
-        let hit = try #require(timeline.clipSourceTime(at: 0.5))
+        // The trim leaves a 1 s gap, so timeline 1.5 s is now source 2 s: halfway through the zoom.
+        let hit = try #require(timeline.clipSourceTime(at: 1.5))
         #expect(abs(timeline.clips[hit.index].transform(atSource: hit.sourceTime).scale - 1.25) < 1e-9)
 
-        let splitID = timeline.split(at: 0.5)
+        let splitID = timeline.split(at: 1.5)
         let right = try #require(splitID)
         let index = try #require(timeline.index(ofClip: right))
         #expect(timeline.clips[index].transformKeyframes == zoom(), "Both halves keep the curve")

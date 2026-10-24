@@ -88,8 +88,7 @@ struct OverlayRenderingTests {
 
     @Test func gapsInTheMainTrackAreBlack() async throws {
         var timeline = Timeline(clips: [try yellowPhoto(), try yellowPhoto()])
-        timeline.setMagnetic(false)
-        timeline.slideClip(timeline.clips[1].id, toStart: 5)
+        timeline.moveMainClip(timeline.clips[1].id, toStart: 5)
         let output = try await CompositionBuilder.build(timeline, store: store)
         #expect(abs(output.composition.duration.seconds - 8) < 0.02)
         let gap = TestMedia.centerColor(of: try await frame(of: output, at: 4))

@@ -92,12 +92,23 @@ struct TimelineTests {
     }
 
     @Test(arguments: [
-        (0.0, 0), (1.9, 0), // first half of a (0..<4)
-        (2.1, 1), (5.4, 1), // second half of a, first half of b (4..<7)
-        (5.6, 2), (9.9, 3), // second half of b, second half of c
+        (1.9, 0, 0.0), // first half of a (0..<4): before it
+        (5.6, 2, 7.0), // second half of b (4..<7): after it
+        (12.0, 3, 12.0), // past the end: where it was dropped, leaving a gap
     ])
-    func insertionIndexAtPlayhead(time: Double, expected: Int) {
-        #expect(sample().insertionIndex(at: time) == expected)
+    func placingAClip(time: Double, index: Int, start: Double) {
+        var timeline = sample()
+        let clip = Clip.photo(mediaFile: "p.heic")
+        timeline.place([clip], at: time)
+        #expect(timeline.index(ofClip: clip.id) == index)
+        #expect(timeline.timeRange(ofClip: clip.id)?.lowerBound == start)
+    }
+
+    @Test func placingOnAClipPushesOnlyWhatItMust() {
+        var timeline = sample()
+        timeline.place([.photo(mediaFile: "p.heic")], at: 1)
+        #expect(timeline.timeRange(ofClipAt: 1) == 3..<7, "a moves right by the new clip's length")
+        #expect(timeline.timeRange(ofClipAt: 3) == 10..<13)
     }
 
     // MARK: - Trim
@@ -191,7 +202,7 @@ struct TimelineTests {
         var timeline = sample()
         timeline.removeClip(timeline.clips[1].id)
         #expect(timeline.clips.map(\.mediaFile) == ["a.mov", "c.heic"])
-        #expect(timeline.duration == 7)
+        #expect(timeline.timeRange(ofClipAt: 1) == 7..<10, "Later clips stay put, leaving a gap")
     }
 
     @Test func moveClip() {
@@ -202,21 +213,36 @@ struct TimelineTests {
         #expect(timeline.clips.map(\.mediaFile) == ["a.mov", "b.mov", "c.heic"])
     }
 
-    @Test(arguments: [
-        (0.5, 0), // before a's midpoint (2): first
-        (2.5, 1), // past a's midpoint: after a
-        (8.6, 2), // past c's midpoint (8.5): last
-    ])
-    func reorderDestinationForDraggedMiddleClip(time: Double, expected: Int) {
-        let timeline = sample()
-        #expect(timeline.reorderDestination(movingClip: timeline.clips[1].id, toTime: time) == expected)
+    @Test func droppingAClipOnAnotherReordersAndPushesLaterClips() {
+        var timeline = sample()
+        timeline.moveMainClip(timeline.clips[0].id, toStart: 8) // first half of c (7..<10)
+        #expect(timeline.clips.map(\.mediaFile) == ["b.mov", "a.mov", "c.heic"])
+        #expect(timeline.timeRange(ofClipAt: 0) == 4..<7, "b stays put")
+        #expect(timeline.timeRange(ofClipAt: 1) == 7..<11)
+        #expect(timeline.timeRange(ofClipAt: 2) == 11..<14)
     }
 
-    @Test func reorderDestinationApplied() {
+    @Test func movingAClipDropsItsTransitions() {
         var timeline = sample()
-        let id = timeline.clips[0].id
-        timeline.moveClip(id, to: timeline.reorderDestination(movingClip: id, toTime: 9))
-        #expect(timeline.clips.map(\.mediaFile) == ["b.mov", "c.heic", "a.mov"])
+        timeline.setTransition(ClipTransition(kind: .crossfade, duration: 0.5), afterClip: timeline.clips[0].id)
+        timeline.setTransition(ClipTransition(kind: .crossfade, duration: 0.5), afterClip: timeline.clips[1].id)
+        timeline.moveMainClip(timeline.clips[1].id, toStart: 20)
+        #expect(timeline.clips.allSatisfy { $0.transition == nil })
+    }
+
+    @Test(arguments: [
+        (4.9, 5.0), // start snaps to an edge at 5
+        (3.1, 3.0), // end (start + 2) snaps to 5
+        (4.0, 4.0), // nothing within 0.2 s
+    ])
+    func snapping(start: Double, expected: Double) {
+        #expect(Timeline.snapped(start: start, duration: 2, to: [0, 5], tolerance: 0.2) == expected)
+    }
+
+    @Test func snapTimesSkipTheDraggedItem() {
+        let timeline = sample()
+        let times = timeline.snapTimes(excluding: timeline.clips[1].id)
+        #expect(Set(times) == [0, 4, 7, 10])
     }
 
     @Test func unknownClipIDIsIgnored() {

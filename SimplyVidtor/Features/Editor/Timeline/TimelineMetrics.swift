@@ -24,6 +24,11 @@ nonisolated struct TimelineMetrics: Equatable {
         Double(offset / pointsPerSecond)
     }
 
+    /// Dragged items snap to edges this close.
+    static let snapDistance: CGFloat = 10
+
+    var snapTolerance: Double { time(forOffset: Self.snapDistance) }
+
     /// Smallest interval that keeps labels from crowding.
     var tickInterval: Double {
         Self.tickIntervals.first { width(of: $0) >= Self.minimumTickSpacing } ?? Self.tickIntervals.last!
@@ -45,21 +50,28 @@ enum TimelineLayout {
         }
     }
 
-    /// Ruler, main track and every other track, with the gaps between them.
+    /// Ruler and every row, with the gaps between them.
     static func contentHeight(for timeline: Timeline) -> CGFloat {
-        let rows = timeline.tracks.map { height(of: $0.kind) }
-        return Theme.Size.rulerHeight + Theme.Size.timelineClipHeight + rows.reduce(0, +)
-            + CGFloat(rows.count + 1) * Theme.Spacing.xs
+        let rows = rows(of: timeline)
+        return Theme.Size.rulerHeight + rows.map(\.height).reduce(0, +) + CGFloat(rows.count) * Theme.Spacing.xs
     }
 
-    enum Row: Equatable {
+    enum Row: Hashable {
         case main
         case track(Track)
+
+        var height: CGFloat {
+            switch self {
+            case .main: Theme.Size.timelineClipHeight
+            case .track(let track): TimelineLayout.height(of: track.kind)
+            }
+        }
     }
 
-    /// Rows in display order: the main track, visual tracks (drawing order), then audio.
-    static func displayTracks(of timeline: Timeline) -> [Track] {
-        timeline.visualTracks + timeline.audioTracks
+    /// Video and text tracks above the main track, the top one drawn on top;
+    /// audio tracks below.
+    static func rows(of timeline: Timeline) -> [Row] {
+        timeline.visualTracks.reversed().map { .track($0) } + [.main] + timeline.audioTracks.map { .track($0) }
     }
 
     /// The row under `y` in the tracks' coordinates; the gap between rows
@@ -67,11 +79,9 @@ enum TimelineLayout {
     static func row(atY y: CGFloat, in timeline: Timeline) -> Row? {
         let gap = Theme.Spacing.xs
         var top = Theme.Size.rulerHeight + gap
-        var rows: [(Row, CGFloat)] = [(.main, Theme.Size.timelineClipHeight)]
-        rows += displayTracks(of: timeline).map { (.track($0), height(of: $0.kind)) }
-        for (row, height) in rows {
-            if y >= top - gap / 2, y < top + height + gap / 2 { return row }
-            top += height + gap
+        for row in rows(of: timeline) {
+            if y >= top - gap / 2, y < top + row.height + gap / 2 { return row }
+            top += row.height + gap
         }
         return nil
     }

@@ -179,11 +179,11 @@ nonisolated extension Timeline {
         settleOverlay(at: overlays.count - 1)
     }
 
-    /// Moves an overlay onto the main track, inserted where `time` falls.
+    /// Moves an overlay onto the main track, starting at `time` (see `place`).
     mutating func moveToMain(_ id: Clip.ID, at time: Double) {
         guard let index = overlayIndex(of: id) else { return }
         let clip = overlays.remove(at: index).clip
-        insert([clip], at: insertionIndex(at: time))
+        place([clip], at: time)
     }
 
     /// Moves an item off any item it now overlaps on its track.
@@ -239,24 +239,5 @@ nonisolated extension Timeline {
             if current > peak.count { peak = (current, time) }
         }
         return peak
-    }
-
-    // MARK: - Magnet
-
-    /// Turning the magnet on closes the gaps between main-track clips.
-    mutating func setMagnetic(_ on: Bool) {
-        isMagnetic = on
-        if on { for i in clips.indices { clips[i].gapBefore = 0 } }
-    }
-
-    /// Magnet off: slides a main-track clip in time, between its neighbours.
-    mutating func slideClip(_ id: Clip.ID, toStart time: Double) {
-        guard !isMagnetic, let index = index(ofClip: id) else { return }
-        let start = startTime(ofClipAt: index)
-        let earliest = start - gap(beforeClipAt: index)
-        let latest = index + 1 < clips.count ? start + gap(beforeClipAt: index + 1) : .infinity
-        let delta = min(max(time, earliest), latest) - start
-        clips[index].gapBefore = gap(beforeClipAt: index) + delta
-        if index + 1 < clips.count { clips[index + 1].gapBefore = gap(beforeClipAt: index + 1) - delta }
     }
 }
