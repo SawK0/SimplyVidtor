@@ -56,14 +56,14 @@ struct MediaPickerView: View {
     @State private var pendingClips: [Clip]?
 
     var body: some View {
-        ZStack {
-            photosPicker
-                .opacity(tab == .media ? 1 : 0)
-                .allowsHitTesting(tab == .media)
-            audioTab
-                .opacity(tab == .audio ? 1 : 0)
-                .allowsHitTesting(tab == .audio)
+        // One tab at a time: the inline picker alongside the audio tab loops layout forever on iOS 17.
+        Group {
+            switch tab {
+            case .media: photosPicker
+            case .audio: audioTab
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .safeAreaInset(edge: .top, spacing: 0) { header }
         .safeAreaInset(edge: .bottom, spacing: 0) { addButton }
         .foregroundStyle(Theme.Palette.textPrimary)
