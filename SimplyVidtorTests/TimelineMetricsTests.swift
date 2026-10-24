@@ -99,5 +99,7 @@ struct TimelineMetricsTests {
         #expect(grabs(5), "Leading handle")
         #expect(grabs(95), "Trailing handle")
         #expect(!grabs(50), "The middle scrolls")
+        #expect(TimelineLayout.grabsSelection(at: CGPoint(x: 50, y: mainY), in: timeline, metrics: metrics, selected: [clip.id],
+                                              grabsWholeClips: true), "While multi-selecting the whole clip drags")
     }
 }

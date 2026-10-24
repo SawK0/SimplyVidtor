@@ -33,6 +33,8 @@ struct EditorView: View {
             if let session, let activeTool {
                 panel(for: activeTool, session: session)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if let session, session.isMultiSelecting {
+                multiSelectBar(session)
             } else {
                 toolbar
             }
@@ -323,6 +325,9 @@ struct EditorView: View {
                 }
                 .disabled(!(session?.canSplit ?? false))
                 .accessibilityIdentifier("editor.tool.split")
+                ToolButton(title: "Select", systemImage: "checklist") { session?.beginMultiSelect() }
+                    .disabled(session == nil)
+                    .accessibilityIdentifier("editor.tool.select")
                 ToolButton(title: "Speed", systemImage: "gauge.with.dots.needle.50percent") { open(.speed) }
                     .disabled(session?.timeline.clips.isEmpty ?? true)
                     .accessibilityIdentifier("editor.tool.speed")
@@ -380,6 +385,44 @@ struct EditorView: View {
             .padding(.horizontal, Theme.Spacing.gutter)
             .padding(.vertical, Theme.Spacing.xs)
         }
+        .background(Theme.Palette.bgSurface)
+        .background {
+            // Hardware keyboard: ⌘A selects everything.
+            Button("Select All") {
+                session?.beginMultiSelect()
+                session?.selectAll()
+            }
+            .keyboardShortcut("a", modifiers: .command)
+            .hidden()
+        }
+    }
+
+    /// Replaces the toolbar while picking several items to move or delete together.
+    private func multiSelectBar(_ session: EditorSession) -> some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            Text("^[\(session.multiSelection.count) item](inflect: true)")
+                .font(Theme.Typography.callout.monospacedDigit())
+                .foregroundStyle(Theme.Palette.textSecondary)
+                .accessibilityIdentifier("editor.multi.count")
+            Spacer(minLength: 0)
+            ToolButton(title: "All", systemImage: "checklist.checked") { session.selectAll() }
+                .keyboardShortcut("a", modifiers: .command)
+                .accessibilityIdentifier("editor.multi.all")
+            ToolButton(title: "To End", systemImage: "arrow.right.to.line") { session.selectToEnd() }
+                .accessibilityIdentifier("editor.multi.toEnd")
+            ToolButton(title: "Delete", systemImage: "trash") {
+                Task { await session.deleteMultiSelection() }
+            }
+            .keyboardShortcut(.delete, modifiers: [])
+            .disabled(session.multiSelection.isEmpty)
+            .accessibilityIdentifier("editor.multi.delete")
+            Button("Done") { session.endMultiSelect() }
+                .buttonStyle(.primaryCompact)
+                .keyboardShortcut(.cancelAction)
+                .accessibilityIdentifier("editor.multi.done")
+        }
+        .padding(.horizontal, Theme.Spacing.gutter)
+        .padding(.vertical, Theme.Spacing.xs)
         .background(Theme.Palette.bgSurface)
     }
 }

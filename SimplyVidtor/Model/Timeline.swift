@@ -179,14 +179,18 @@ nonisolated struct Timeline: Codable, Hashable, Sendable {
 
     /// Edges of every item but `excluding`, for dragged items to snap to.
     func snapTimes(excluding id: UUID?) -> [Double] {
+        snapTimes(excluding: id.map { [$0] } ?? [])
+    }
+
+    func snapTimes(excluding ids: Set<UUID>) -> [Double] {
         var times: [Double] = [0]
-        for index in clips.indices where clips[index].id != id {
+        for index in clips.indices where !ids.contains(clips[index].id) {
             let range = timeRange(ofClipAt: index)
             times += [range.lowerBound, range.upperBound]
         }
-        for overlay in overlays where overlay.id != id { times += [overlay.timelineStart, overlay.timelineEnd] }
-        for item in textItems where item.id != id { times += [item.timelineStart, item.timelineEnd] }
-        for item in audioItems where item.id != id { times += [item.timelineStart, item.timelineEnd] }
+        for overlay in overlays where !ids.contains(overlay.id) { times += [overlay.timelineStart, overlay.timelineEnd] }
+        for item in textItems where !ids.contains(item.id) { times += [item.timelineStart, item.timelineEnd] }
+        for item in audioItems where !ids.contains(item.id) { times += [item.timelineStart, item.timelineEnd] }
         return times
     }
 

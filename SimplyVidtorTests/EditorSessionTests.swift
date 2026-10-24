@@ -50,6 +50,50 @@ struct EditorSessionTests {
         #expect(session.currentTime == 4)
     }
 
+    @Test func multiSelectStartsFromTheSelectionAndEndsOnASingleSelection() throws {
+        let session = try makeSession(clips: [.video(mediaFile: "a.mov", duration: 4), .video(mediaFile: "b.mov", duration: 4)])
+        let (a, b) = (session.timeline.clips[0].id, session.timeline.clips[1].id)
+        session.select(a)
+        session.beginMultiSelect()
+        #expect(session.multiSelection == [a])
+        #expect(session.selectedClipID == nil)
+        session.toggleInMultiSelection(b)
+        session.toggleInMultiSelection(a)
+        #expect(session.multiSelection == [b])
+        session.selectAll()
+        #expect(session.multiSelection == [a, b])
+        session.selectText(UUID())
+        #expect(!session.isMultiSelecting && session.multiSelection.isEmpty)
+    }
+
+    @Test func multiSelectDeleteToEndAndUndo() async throws {
+        let session = try makeSession(clips: [.video(mediaFile: "a.mov", duration: 4), .video(mediaFile: "b.mov", duration: 4)])
+        await session.rebuild()
+        let b = session.timeline.clips[1].id
+        await session.seek(to: 5)
+        session.beginMultiSelect()
+        session.selectToEnd()
+        #expect(session.multiSelection == [b])
+        await session.deleteMultiSelection()
+        #expect(session.timeline.clips.count == 1)
+        #expect(session.multiSelection.isEmpty, "Deleted items leave the selection")
+        await session.undo()
+        #expect(session.timeline.clips.count == 2)
+    }
+
+    @Test func draggingTheSelectionIsOneUndoStep() async throws {
+        let session = try makeSession(clips: [.video(mediaFile: "a.mov", duration: 4), .video(mediaFile: "b.mov", duration: 4)])
+        let b = session.timeline.clips[1].id
+        session.beginMultiSelect()
+        session.toggleInMultiSelection(b)
+        session.dragMultiSelection(anchor: b, by: 1, snapTolerance: 0.1)
+        session.dragMultiSelection(anchor: b, by: 2, snapTolerance: 0.1)
+        await session.endInteractiveEdit()
+        #expect(session.timeline.timeRange(ofClip: b) == 6..<10, "Each update starts from the drag's beginning")
+        await session.undo()
+        #expect(session.timeline.timeRange(ofClip: b) == 4..<8)
+    }
+
     @Test func selectTogglesAndClears() throws {
         let session = try makeSession()
         let id = session.timeline.clips[0].id

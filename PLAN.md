@@ -170,6 +170,7 @@ Chunk 5: history
 - [x] Hide the timeline while typing text so the preview isn't squeezed
 - [x] Timeline zoom both ways: pinch sideways zooms time, pinch up and down resizes the rows (60–200%); ⌘= / ⌘- and ⌥= / ⌥- on a hardware keyboard
 - [x] Hairline separators between timeline rows
+- [x] Multi-select (Premiere-style): Select tool, then tap to pick items on any track; All, To End (Track Select Forward from the playhead), Delete; drag any picked item to move them all in time, keeping spacing and tracks, as one undo step; ⌘A, Delete, Esc on a keyboard
 - [x] Timeline drags: check the start of fast drags isn't swallowed by the scroll view
 - [ ] Filters and crop in timeline thumbnails and project covers
 

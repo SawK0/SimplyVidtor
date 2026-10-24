@@ -86,7 +86,7 @@ struct TimelineTracksView: View {
             }
         }
         .overlay(alignment: .leading) {
-            if session.selectedClipID == nil {
+            if session.selectedClipID == nil && !session.isMultiSelecting {
                 ForEach(Array(timeline.clips.dropLast().enumerated()), id: \.element.id) { index, clip in
                     // Only clips that touch can have a transition.
                     if timeline.gap(beforeClipAt: index + 1) == 0 {
@@ -127,6 +127,7 @@ struct TimelineTracksView: View {
 
     private func clipView(_ clip: Clip, at index: Int) -> some View {
         let isSelected = session.selectedClipID == clip.id
+        let isPicked = session.multiSelection.contains(clip.id)
         let width = metrics.width(of: clip.duration)
         return FilmstripView(clip: clip, width: width, height: TimelineLayout.Row.main.height(metrics), store: store)
             .overlay {
@@ -136,6 +137,8 @@ struct TimelineTracksView: View {
                         onTrailingDrag: { trim(clip.id, at: index, leading: false, by: $0) },
                         onEnded: finishTrim
                     )
+                } else if isPicked {
+                    PickedFrame()
                 }
             }
             // Above the selection frame, so a keyframe at the clip's edge shows.
@@ -147,12 +150,13 @@ struct TimelineTracksView: View {
                         .frame(height: Theme.Size.keyframeMark * 2)
                 }
             }
-            .onTapGesture { session.select(clip.id) }
+            .gesture(groupDrag(clip.id), including: isPicked ? .all : .subviews)
+            .onTapGesture { tap(clip.id) { session.select(clip.id) } }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Clip \(index + 1)")
             .accessibilityValue(accessibilityValue(for: clip))
-            .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
-            .accessibilityAction { session.select(clip.id) }
+            .accessibilityAddTraits(isSelected || isPicked ? [.isButton, .isSelected] : .isButton)
+            .accessibilityAction { tap(clip.id) { session.select(clip.id) } }
             .accessibilityAction(named: "Move Left") { move(clip.id, to: index - 1) }
             .accessibilityAction(named: "Move Right") { move(clip.id, to: index + 1) }
             .accessibilityIdentifier("timeline.clip.\(index)")
@@ -253,8 +257,34 @@ struct TimelineTracksView: View {
     }
 
     private func deselect() {
+        if session.isMultiSelecting { return session.clearMultiSelection() }
         session.select(nil)
         session.selectTransition(after: nil)
+    }
+
+    // MARK: - Multi-select
+
+    /// Selects one item, or adds or removes it while multi-selecting.
+    private func tap(_ id: UUID, single: () -> Void) {
+        if session.isMultiSelecting { session.toggleInMultiSelection(id) } else { single() }
+    }
+
+    /// Dragging any picked item moves the whole multi-selection in time.
+    private func groupDrag(_ id: UUID) -> some Gesture {
+        DragGesture(minimumDistance: 4, coordinateSpace: .named(Self.coordinateSpace))
+            .onChanged { moveGroup(id, by: $0.translation.width) }
+            .onEnded {
+                moveGroup(id, by: $0.translation.width)
+                endGroupMove()
+            }
+    }
+
+    private func moveGroup(_ id: UUID, by translation: CGFloat) {
+        session.dragMultiSelection(anchor: id, by: Double(translation / metrics.pointsPerSecond), snapTolerance: metrics.snapTolerance)
+    }
+
+    private func endGroupMove() {
+        Task { await session.endInteractiveEdit() }
     }
 
     /// The same-kind track a vertical drag of `dy` points reaches from `trackID`.
@@ -283,6 +313,7 @@ struct TimelineTracksView: View {
     private func overlayView(_ overlay: OverlayClip, at index: Int) -> some View {
         let clip = overlay.clip
         let isSelected = session.selectedClipID == clip.id
+        let isPicked = session.multiSelection.contains(clip.id)
         return FilmstripView(clip: clip, width: metrics.width(of: clip.duration),
                              height: TimelineLayout.height(of: .video, metrics), store: store)
             .overlay {
@@ -292,6 +323,8 @@ struct TimelineTracksView: View {
                         onTrailingDrag: { trimOverlay(clip.id, leading: false, by: $0) },
                         onEnded: { Task { await session.endInteractiveEdit() } }
                     )
+                } else if isPicked {
+                    PickedFrame()
                 }
             }
             .overlay(alignment: .bottom) {
@@ -304,21 +337,28 @@ struct TimelineTracksView: View {
             }
             .gesture(
                 DragGesture(minimumDistance: 4, coordinateSpace: .named(Self.coordinateSpace))
-                    .onChanged { drag in moveOverlay(clip.id, by: drag.translation.width, fingerY: drag.location.y) }
+                    .onChanged { drag in
+                        if isPicked { return moveGroup(clip.id, by: drag.translation.width) }
+                        moveOverlay(clip.id, by: drag.translation.width, fingerY: drag.location.y)
+                    }
                     .onEnded { drag in
+                        if isPicked {
+                            moveGroup(clip.id, by: drag.translation.width)
+                            return endGroupMove()
+                        }
                         // A flick can end before the last change arrives.
                         moveOverlay(clip.id, by: drag.translation.width, fingerY: drag.location.y)
                         finishOverlayMove(clip.id, by: drag.translation.width)
                     },
-                including: isSelected ? .all : .subviews
+                including: isSelected || isPicked ? .all : .subviews
             )
             .offset(x: metrics.offset(for: overlay.timelineStart))
-            .onTapGesture { session.select(clip.id) }
+            .onTapGesture { tap(clip.id) { session.select(clip.id) } }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Overlay \(index + 1)")
             .accessibilityValue(accessibilityValue(for: clip))
-            .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
-            .accessibilityAction { session.select(clip.id) }
+            .accessibilityAddTraits(isSelected || isPicked ? [.isButton, .isSelected] : .isButton)
+            .accessibilityAction { tap(clip.id) { session.select(clip.id) } }
             .accessibilityIdentifier("timeline.overlay.\(index)")
     }
 
@@ -378,6 +418,7 @@ struct TimelineTracksView: View {
             Color.clear
             ForEach(Array(timeline.textItems.enumerated()).filter { $0.element.trackID == track.id }, id: \.element.id) { index, item in
                 let isSelected = session.selectedTextID == item.id
+                let isPicked = session.multiSelection.contains(item.id)
                 HStack(spacing: Theme.Spacing.xxs) {
                     Label(item.text, systemImage: item.isSticker ? "face.smiling" : "textformat")
                         .labelStyle(.titleAndIcon)
@@ -407,24 +448,33 @@ struct TimelineTracksView: View {
                                 onTrailingDrag: { dragText(item, by: $0) { $0.trimmingEnd(to: $0.timelineEnd + $1) } },
                                 onEnded: endTextDrag
                             )
+                        } else if isPicked {
+                            PickedFrame()
                         }
                     }
                     .gesture(
                         DragGesture(minimumDistance: 4, coordinateSpace: .named(Self.coordinateSpace))
-                            .onChanged { drag in moveText(item, by: drag.translation) }
+                            .onChanged { drag in
+                                if isPicked { return moveGroup(item.id, by: drag.translation.width) }
+                                moveText(item, by: drag.translation)
+                            }
                             .onEnded { drag in
+                                if isPicked {
+                                    moveGroup(item.id, by: drag.translation.width)
+                                    return endGroupMove()
+                                }
                                 moveText(item, by: drag.translation)
                                 endTextDrag()
                             },
-                        including: isSelected ? .all : .subviews
+                        including: isSelected || isPicked ? .all : .subviews
                     )
                     .offset(x: metrics.offset(for: item.timelineStart))
-                    .onTapGesture { session.selectText(item.id) }
+                    .onTapGesture { tap(item.id) { session.selectText(item.id) } }
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(textLabel(item, index: index))
                     .accessibilityValue(item.text)
-                    .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
-                    .accessibilityAction { session.selectText(item.id) }
+                    .accessibilityAddTraits(isSelected || isPicked ? [.isButton, .isSelected] : .isButton)
+                    .accessibilityAction { tap(item.id) { session.selectText(item.id) } }
                     .accessibilityIdentifier("timeline.text.\(index)")
             }
         }
@@ -458,6 +508,7 @@ struct TimelineTracksView: View {
             Color.clear
             ForEach(Array(timeline.audioItems.enumerated()).filter { $0.element.trackID == track.id }, id: \.element.id) { index, item in
                 let isSelected = session.selectedAudioID == item.id
+                let isPicked = session.multiSelection.contains(item.id)
                 AudioWaveformView(
                     item: item,
                     width: metrics.width(of: item.sourceDuration),
@@ -470,24 +521,33 @@ struct TimelineTracksView: View {
                                 onTrailingDrag: { dragAudio(item, by: $0) { $0.trimmingEnd(by: $1) } },
                                 onEnded: endAudioDrag
                             )
+                        } else if isPicked {
+                            PickedFrame()
                         }
                     }
                     .gesture(
                         DragGesture(minimumDistance: 4, coordinateSpace: .named(Self.coordinateSpace))
-                            .onChanged { drag in moveAudio(item, by: drag.translation) }
+                            .onChanged { drag in
+                                if isPicked { return moveGroup(item.id, by: drag.translation.width) }
+                                moveAudio(item, by: drag.translation)
+                            }
                             .onEnded { drag in
+                                if isPicked {
+                                    moveGroup(item.id, by: drag.translation.width)
+                                    return endGroupMove()
+                                }
                                 moveAudio(item, by: drag.translation)
                                 endAudioDrag()
                             },
-                        including: isSelected ? .all : .subviews
+                        including: isSelected || isPicked ? .all : .subviews
                     )
                     .offset(x: metrics.offset(for: item.timelineStart))
-                    .onTapGesture { session.selectAudio(isSelected ? nil : item.id) }
+                    .onTapGesture { tap(item.id) { session.selectAudio(isSelected ? nil : item.id) } }
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("Audio \(index + 1)")
                     .accessibilityValue(String(localized: "\(item.sourceDuration.formatted(.number.precision(.fractionLength(1)))) seconds"))
-                    .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
-                    .accessibilityAction { session.selectAudio(item.id) }
+                    .accessibilityAddTraits(isSelected || isPicked ? [.isButton, .isSelected] : .isButton)
+                    .accessibilityAction { tap(item.id) { session.selectAudio(item.id) } }
                     .accessibilityIdentifier("timeline.audio.\(index)")
             }
         }
@@ -557,6 +617,17 @@ private struct SelectionFrame: View {
             )
             .accessibilityLabel(Text(label))
             .accessibilityIdentifier(id)
+    }
+}
+
+/// Accent outline, without trim handles, on an item picked while multi-selecting.
+private struct PickedFrame: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: Theme.Radius.clip)
+            .strokeBorder(Theme.Palette.accent, lineWidth: Theme.Size.selectionBorder)
+            .background(Theme.Palette.accent.opacity(0.2), in: .rect(cornerRadius: Theme.Radius.clip))
+            .padding(.trailing, Theme.Size.clipGap)
+            .allowsHitTesting(false)
     }
 }
 
@@ -675,7 +746,8 @@ struct EditorTimelineView: View {
                 onPinch: pinch,
                 canScroll: { point in
                     !TimelineLayout.grabsSelection(at: CGPoint(x: point.x - inset, y: point.y), in: session.timeline,
-                                                   metrics: metrics, selected: selectedIDs)
+                                                   metrics: metrics, selected: selectedIDs,
+                                                   grabsWholeClips: session.isMultiSelecting)
                 }
             ) {
                 TimelineTracksView(session: session, metrics: metrics, inset: inset, store: store,
@@ -687,6 +759,7 @@ struct EditorTimelineView: View {
         .frame(height: TimelineLayout.visibleHeight(for: session.timeline, metrics))
         .background { zoomShortcuts }
         .sensoryFeedback(.selection, trigger: session.selectedClipID)
+        .sensoryFeedback(.selection, trigger: session.multiSelection)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("editor.timeline")
     }
@@ -726,6 +799,7 @@ struct EditorTimelineView: View {
 
     private var selectedIDs: Set<UUID> {
         Set([session.selectedClipID, session.selectedTextID, session.selectedAudioID].compactMap { $0 })
+            .union(session.multiSelection)
     }
 
     /// Long-press a main-track clip, then drag: along the track (snapping to
@@ -774,7 +848,8 @@ struct EditorTimelineView: View {
 
     /// The main-track clip under a long press, if it began on the main row.
     private func mainClip(at time: Double, y: CGFloat) -> Clip.ID? {
-        guard !session.isEditingInteractively, TimelineLayout.row(atY: y, in: session.timeline, metrics) == .main,
+        // While multi-selecting, picked clips move with a plain drag instead.
+        guard !session.isEditingInteractively, !session.isMultiSelecting, TimelineLayout.row(atY: y, in: session.timeline, metrics) == .main,
               let index = session.timeline.clipIndex(at: time)
         else { return nil }
         return session.timeline.clips[index].id

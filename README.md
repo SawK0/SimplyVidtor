@@ -10,7 +10,7 @@ A simple, dark-themed video editor for iPhone and iPad, built with SwiftUI and A
 
 - **Projects:** create, rename, duplicate and delete; autosave with 50-step undo and redo.
 - **Media:** import videos and photos from the library, and audio from Files or from a video's soundtrack. Imported audio is kept in a library you can reuse across projects.
-- **Timeline:** scroll to scrub, pinch to zoom, trim, split, duplicate, reorder, and transitions (cross-fade, dip to black).
+- **Timeline:** scroll to scrub, pinch to zoom (time and track height), trim, split, duplicate, reorder, and transitions (cross-fade, dip to black). Multi-select items on any track to move or delete them together, including Select All and Select to End.
 - **Clip tools:** speed (0.1×–10×, keep pitch), volume, filters, adjustments, crop and rotate, and transform (position, scale, rotation, opacity).
 - **Layers:** any number of video, text and audio tracks; picture in picture; clips sit anywhere on the main track and snap to neighbouring edges; higher tracks draw on top.
 - **Text and stickers:** fonts, colors and backgrounds; In / Out / Loop animations, including per-character effects; animation packs imported as JSON ([format](docs/motion-packs.md)).

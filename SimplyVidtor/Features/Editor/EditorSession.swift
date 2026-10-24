@@ -19,6 +19,7 @@ final class EditorSession {
                 selectedTransitionClipID = nil
                 selectedTextID = nil
                 selectedAudioID = nil
+                endMultiSelect()
             }
         }
     }
@@ -27,6 +28,10 @@ final class EditorSession {
     private(set) var selectedAudioID: AudioItem.ID?
     /// The cut after this clip, while editing its transition.
     private(set) var selectedTransitionClipID: Clip.ID?
+    /// Picking several items to move or delete together; taps add and remove them.
+    private(set) var isMultiSelecting = false
+    /// Ids of clips (any track), text and audio picked while multi-selecting.
+    private(set) var multiSelection: Set<UUID> = []
 
     @ObservationIgnored let player = AVPlayer()
     /// Lets text and look edits show in the preview without a rebuild.
@@ -107,6 +112,7 @@ final class EditorSession {
         if let id = selectedTransitionClipID, !timeline.clips.dropLast().contains(where: { $0.id == id }) {
             selectedTransitionClipID = nil
         }
+        multiSelection.formIntersection(timeline.allItemIDs)
         try? project.save(timeline)
         await rebuild()
     }
@@ -127,6 +133,7 @@ final class EditorSession {
             selectedClipID = nil
             selectedTextID = nil
             selectedAudioID = nil
+            endMultiSelect()
         }
         selectedTransitionClipID = target
     }
@@ -137,6 +144,7 @@ final class EditorSession {
             selectedClipID = nil
             selectedTransitionClipID = nil
             selectedAudioID = nil
+            endMultiSelect()
         }
         selectedTextID = id
         if let item = selectedText, !item.isVisible(at: currentTime) {
@@ -149,6 +157,7 @@ final class EditorSession {
             selectedClipID = nil
             selectedTransitionClipID = nil
             selectedTextID = nil
+            endMultiSelect()
         }
         selectedAudioID = id
     }
@@ -211,6 +220,56 @@ final class EditorSession {
             updateInteractiveEdit(edit)
         } else {
             Task { await update(edit) }
+        }
+    }
+
+    // MARK: - Multi-select
+
+    /// Starts multi-selecting, keeping the selected item (if any) in the selection.
+    /// Selecting a single item elsewhere (e.g. text in the preview) ends it.
+    func beginMultiSelect() {
+        let current = [selectedClipID, selectedTextID, selectedAudioID].compactMap { $0 }
+        selectedClipID = nil
+        selectedTextID = nil
+        selectedAudioID = nil
+        selectedTransitionClipID = nil
+        multiSelection = Set(current).intersection(timeline.allItemIDs)
+        isMultiSelecting = true
+    }
+
+    func endMultiSelect() {
+        isMultiSelecting = false
+        multiSelection = []
+    }
+
+    func toggleInMultiSelection(_ id: UUID) {
+        if multiSelection.contains(id) { multiSelection.remove(id) } else { multiSelection.insert(id) }
+    }
+
+    func selectAll() { multiSelection = timeline.allItemIDs }
+
+    /// Everything still playing at the playhead or after it.
+    func selectToEnd() { multiSelection = timeline.itemIDs(endingAfter: currentTime) }
+
+    func clearMultiSelection() { multiSelection = [] }
+
+    func deleteMultiSelection() async {
+        let ids = multiSelection
+        await update { $0.removeItems(ids) }
+    }
+
+    /// Live move of the whole selection, dragged by `anchor`: the items as they
+    /// were when the drag began, shifted so the anchor moves `delta` seconds,
+    /// snapped to other items' edges and the playhead. Finish with `endInteractiveEdit`.
+    func dragMultiSelection(anchor: UUID, by delta: Double, snapTolerance: Double) {
+        let ids = multiSelection
+        let playhead = currentTime
+        beginInteractiveEdit()
+        updateInteractiveEdit { timeline in
+            guard let range = timeline.timeRange(ofItem: anchor) else { return }
+            let start = Timeline.snapped(start: max(range.lowerBound + delta, 0), duration: range.upperBound - range.lowerBound,
+                                         to: timeline.snapTimes(excluding: ids) + [playhead], tolerance: snapTolerance)
+            timeline.moveItems(ids, by: start - range.lowerBound)
         }
     }
 

@@ -412,6 +412,49 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testMultiSelectMovesAndDeletesItemsTogether() throws {
+        createProject()
+        tapTool("editor.tool.overlay")
+        let add = app.buttons["mediaPicker.add"]
+        XCTAssertTrue(add.waitForExistence(timeout: 3))
+        add.tap()
+        let clip = app.descendants(matching: .any)["timeline.clip.0"]
+        let overlay = app.descendants(matching: .any)["timeline.overlay.0"]
+        XCTAssertTrue(overlay.waitForExistence(timeout: 3))
+        app.descendants(matching: .any)["editor.timeline"].pinch(withScale: 0.3, velocity: -1)
+
+        tapTool("editor.tool.select")
+        let count = app.staticTexts["editor.multi.count"]
+        XCTAssertTrue(count.waitForExistence(timeout: 2))
+        XCTAssertEqual(count.label, "1 item", "The new overlay was selected, so it starts picked")
+        clip.tap()
+        XCTAssertEqual(count.label, "2 items")
+        overlay.tap()
+        XCTAssertEqual(count.label, "1 item")
+        overlay.tap()
+        XCTAssertEqual(count.label, "2 items")
+
+        // Dragging one picked item moves both.
+        let clipX = clip.frame.minX, overlayX = overlay.frame.minX
+        let grab = clip.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5))
+        grab.press(forDuration: 0.05, thenDragTo: grab.withOffset(CGVector(dx: 60, dy: 0)))
+        let moved = settledFrame(of: clip).minX - clipX
+        XCTAssertGreaterThan(moved, 30)
+        XCTAssertEqual(overlay.frame.minX - overlayX, moved, accuracy: 2, "They keep their spacing")
+
+        app.buttons["editor.multi.all"].tap()
+        XCTAssertEqual(count.label, "2 items")
+        app.buttons["editor.multi.delete"].tap()
+        XCTAssertTrue(overlay.waitForNonExistence(timeout: 3))
+        XCTAssertFalse(clip.exists)
+        app.buttons["editor.multi.done"].tap()
+        XCTAssertTrue(app.buttons["editor.tool.select"].waitForExistence(timeout: 2))
+        app.buttons["editor.undo"].tap()
+        XCTAssertTrue(overlay.waitForExistence(timeout: 3), "One undo brings both back")
+        XCTAssertTrue(clip.exists)
+    }
+
+    @MainActor
     func testManyOverlappingVideosShowAWarning() throws {
         createProject()
         let warning = app.buttons["editor.videoLoadWarning"]

@@ -115,15 +115,19 @@ enum TimelineLayout {
 
     /// Whether a touch at `point` (tracks' coordinates) lands on something it
     /// drags: a selected overlay, text or audio item, or a selected main clip's
-    /// trim handles. The timeline mustn't start scrolling there, or a fast drag
-    /// scrolls before the item's drag gesture begins.
-    static func grabsSelection(at point: CGPoint, in timeline: Timeline, metrics: TimelineMetrics, selected: Set<UUID>) -> Bool {
+    /// trim handles (the whole clip with `grabsWholeClips`, while multi-selecting).
+    /// The timeline mustn't start scrolling there, or a fast drag scrolls before
+    /// the item's drag gesture begins.
+    static func grabsSelection(at point: CGPoint, in timeline: Timeline, metrics: TimelineMetrics, selected: Set<UUID>,
+                               grabsWholeClips: Bool = false) -> Bool {
         guard !selected.isEmpty, let row = row(atY: point.y, in: timeline, metrics) else { return false }
         let slop = Theme.Spacing.xs
         func covers(_ range: Range<Double>) -> Bool {
             point.x >= metrics.offset(for: range.lowerBound) - slop && point.x <= metrics.offset(for: range.upperBound) + slop
         }
         switch row {
+        case .main where grabsWholeClips:
+            return timeline.clips.indices.contains { selected.contains(timeline.clips[$0].id) && covers(timeline.timeRange(ofClipAt: $0)) }
         case .main:
             guard let index = timeline.clips.firstIndex(where: { selected.contains($0.id) }) else { return false }
             let range = timeline.timeRange(ofClipAt: index)
