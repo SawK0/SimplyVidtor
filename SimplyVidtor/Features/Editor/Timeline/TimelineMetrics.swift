@@ -1,16 +1,20 @@
 import CoreGraphics
 import SwiftUI
 
-/// Maps between timeline seconds and points. The playhead is fixed at the
-/// centre, so the scroll offset in points equals `time * pointsPerSecond`.
+/// Maps between timeline seconds and points, and scales row heights. The
+/// playhead is fixed at the centre, so the scroll offset in points equals
+/// `time * pointsPerSecond`.
 nonisolated struct TimelineMetrics: Equatable {
     static let zoomRange: ClosedRange<CGFloat> = 15...400
+    static let rowScaleRange: ClosedRange<CGFloat> = 0.6...2
     static let defaultPointsPerSecond: CGFloat = 60
     /// Ruler ticks are at least this far apart.
     static let minimumTickSpacing: CGFloat = 64
     private static let tickIntervals: [Double] = [0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300]
 
     var pointsPerSecond: CGFloat = defaultPointsPerSecond
+    /// Row heights relative to the design's.
+    var rowScale: CGFloat = 1
 
     func width(of seconds: Double) -> CGFloat {
         CGFloat(seconds) * pointsPerSecond
@@ -35,35 +39,45 @@ nonisolated struct TimelineMetrics: Equatable {
     }
 
     func zoomed(by scale: CGFloat) -> TimelineMetrics {
-        let pps = min(max(pointsPerSecond * scale, Self.zoomRange.lowerBound), Self.zoomRange.upperBound)
-        return TimelineMetrics(pointsPerSecond: pps)
+        var zoomed = self
+        zoomed.pointsPerSecond = min(max(pointsPerSecond * scale, Self.zoomRange.lowerBound), Self.zoomRange.upperBound)
+        return zoomed
+    }
+
+    /// Taller (or shorter) rows.
+    func rowsZoomed(by scale: CGFloat) -> TimelineMetrics {
+        var zoomed = self
+        zoomed.rowScale = min(max(rowScale * scale, Self.rowScaleRange.lowerBound), Self.rowScaleRange.upperBound)
+        return zoomed
     }
 }
 
-/// Row heights for the timeline's tracks.
+/// Row heights for the timeline's tracks, scaled by `TimelineMetrics.rowScale`.
 enum TimelineLayout {
-    static func height(of kind: TrackKind) -> CGFloat {
-        switch kind {
+    static func height(of kind: TrackKind, _ metrics: TimelineMetrics) -> CGFloat {
+        let base = switch kind {
         case .video: Theme.Size.overlayTrackHeight
         case .text: Theme.Size.textTrackHeight
         case .audio: Theme.Size.audioTrackHeight
         }
+        return base * metrics.rowScale
     }
 
     /// Ruler and every row, with the gaps between them.
-    static func contentHeight(for timeline: Timeline) -> CGFloat {
+    static func contentHeight(for timeline: Timeline, _ metrics: TimelineMetrics) -> CGFloat {
         let rows = rows(of: timeline)
-        return Theme.Size.rulerHeight + rows.map(\.height).reduce(0, +) + CGFloat(rows.count) * Theme.Spacing.xs
+        let heights = rows.map { $0.height(metrics) }.reduce(0, +)
+        return Theme.Size.rulerHeight + heights + CGFloat(rows.count) * Theme.Spacing.xs
     }
 
     enum Row: Hashable {
         case main
         case track(Track)
 
-        var height: CGFloat {
+        func height(_ metrics: TimelineMetrics) -> CGFloat {
             switch self {
-            case .main: Theme.Size.timelineClipHeight
-            case .track(let track): TimelineLayout.height(of: track.kind)
+            case .main: Theme.Size.timelineClipHeight * metrics.rowScale
+            case .track(let track): TimelineLayout.height(of: track.kind, metrics)
             }
         }
     }
@@ -76,12 +90,13 @@ enum TimelineLayout {
 
     /// The row under `y` in the tracks' coordinates; the gap between rows
     /// counts toward the nearer one.
-    static func row(atY y: CGFloat, in timeline: Timeline) -> Row? {
+    static func row(atY y: CGFloat, in timeline: Timeline, _ metrics: TimelineMetrics) -> Row? {
         let gap = Theme.Spacing.xs
         var top = Theme.Size.rulerHeight + gap
         for row in rows(of: timeline) {
-            if y >= top - gap / 2, y < top + row.height + gap / 2 { return row }
-            top += row.height + gap
+            let height = row.height(metrics)
+            if y >= top - gap / 2, y < top + height + gap / 2 { return row }
+            top += height + gap
         }
         return nil
     }
@@ -91,7 +106,7 @@ enum TimelineLayout {
     /// trim handles. The timeline mustn't start scrolling there, or a fast drag
     /// scrolls before the item's drag gesture begins.
     static func grabsSelection(at point: CGPoint, in timeline: Timeline, metrics: TimelineMetrics, selected: Set<UUID>) -> Bool {
-        guard !selected.isEmpty, let row = row(atY: point.y, in: timeline) else { return false }
+        guard !selected.isEmpty, let row = row(atY: point.y, in: timeline, metrics) else { return false }
         let slop = Theme.Spacing.xs
         func covers(_ range: Range<Double>) -> Bool {
             point.x >= metrics.offset(for: range.lowerBound) - slop && point.x <= metrics.offset(for: range.upperBound) + slop
@@ -120,8 +135,9 @@ enum TimelineLayout {
         }
     }
 
-    /// The editor shows the default rows plus up to two more; past that the timeline scrolls.
-    static func visibleHeight(for timeline: Timeline) -> CGFloat {
-        min(contentHeight(for: timeline), contentHeight(for: Timeline()) + 2 * Theme.Size.overlayTrackHeight)
+    /// Up to the height of the default rows plus two more at normal size; past that the timeline scrolls.
+    static func visibleHeight(for timeline: Timeline, _ metrics: TimelineMetrics) -> CGFloat {
+        let limit = contentHeight(for: Timeline(), TimelineMetrics()) + 2 * Theme.Size.overlayTrackHeight
+        return min(contentHeight(for: timeline, metrics), limit)
     }
 }

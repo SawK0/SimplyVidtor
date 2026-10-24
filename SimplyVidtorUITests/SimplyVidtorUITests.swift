@@ -506,6 +506,38 @@ final class SimplyVidtorUITests: XCTestCase {
     }
 
     @MainActor
+    func testKeyboardShortcutsZoomTimeAndTrackHeight() throws {
+        createProject()
+        let clip = clip(0)
+        XCTAssertTrue(clip.waitForExistence(timeout: 3))
+        let start = clip.frame
+
+        // ⌘- zooms time out until the whole clip is on screen.
+        for _ in 0..<3 { app.typeKey("-", modifierFlags: .command) }
+        let zoomed = settledFrame(of: clip)
+        XCTAssertLessThan(zoomed.maxX, app.frame.maxX)
+        XCTAssertEqual(zoomed.height, start.height, accuracy: 1, "Shorter, same height")
+
+        // ⌥= makes the rows taller.
+        app.typeKey("=", modifierFlags: .option)
+        let taller = settledFrame(of: clip)
+        XCTAssertGreaterThan(taller.height, zoomed.height + 10)
+        XCTAssertEqual(taller.width, zoomed.width, accuracy: 1, "Taller, same length")
+    }
+
+    /// The element's frame once it stops changing (zoom steps apply one by one).
+    private func settledFrame(of element: XCUIElement) -> CGRect {
+        var last = element.frame
+        for _ in 0..<10 {
+            usleep(300_000)
+            let frame = element.frame
+            if frame == last { return frame }
+            last = frame
+        }
+        return last
+    }
+
+    @MainActor
     func testAddAndDeleteTrack() throws {
         createProject()
         tapTool("editor.tool.track")

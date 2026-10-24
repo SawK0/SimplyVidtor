@@ -17,6 +17,8 @@ struct TimelineScrollView<Content: View>: UIViewRepresentable {
     /// Long press in content coordinates. Done in UIKit because a SwiftUI long
     /// press inside the hosted content stops the scroll view from panning.
     var onLongPress: (UIGestureRecognizer.State, CGPoint) -> Void = { _, _ in }
+    /// Pinch scale since it began, and whether the fingers spread mostly up and down.
+    var onPinch: (UIGestureRecognizer.State, _ scale: CGFloat, _ vertical: Bool) -> Void = { _, _, _ in }
     /// False where a touch in content coordinates should drag content instead of scrolling.
     var canScroll: (CGPoint) -> Bool = { _ in true }
     @ViewBuilder let content: Content
@@ -37,6 +39,11 @@ struct TimelineScrollView<Content: View>: UIViewRepresentable {
         longPress.minimumPressDuration = 0.35
         longPress.delegate = context.coordinator
         view.addGestureRecognizer(longPress)
+        let pinch = UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.pinched(_:)))
+        pinch.delegate = context.coordinator
+        view.addGestureRecognizer(pinch)
+        // Two fingers pinch; they don't scroll.
+        view.panGestureRecognizer.maximumNumberOfTouches = 1
         return view
     }
 
@@ -61,6 +68,7 @@ struct TimelineScrollView<Content: View>: UIViewRepresentable {
         var parent: TimelineScrollView
         var isInteracting = false
         var isSettingOffset = false
+        private var pinchIsVertical = false
 
         init(parent: TimelineScrollView) { self.parent = parent }
 
@@ -89,6 +97,17 @@ struct TimelineScrollView<Content: View>: UIViewRepresentable {
         @objc func longPressed(_ recognizer: UILongPressGestureRecognizer) {
             guard let view = recognizer.view else { return }
             parent.onLongPress(recognizer.state, recognizer.location(in: view))
+        }
+
+        @objc func pinched(_ recognizer: UIPinchGestureRecognizer) {
+            guard let view = recognizer.view else { return }
+            if recognizer.state == .began, recognizer.numberOfTouches >= 2 {
+                let a = recognizer.location(ofTouch: 0, in: view)
+                let b = recognizer.location(ofTouch: 1, in: view)
+                // Clearly up and down; anything diagonal zooms time.
+                pinchIsVertical = abs(a.y - b.y) > abs(a.x - b.x) * 1.5
+            }
+            parent.onPinch(recognizer.state, recognizer.scale, pinchIsVertical)
         }
 
         private func setInteracting(_ value: Bool) {

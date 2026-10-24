@@ -305,8 +305,6 @@ struct EditorView: View {
                 Color.clear
             }
         }
-        // Grows with the tracks, up to a limit; past it the timeline scrolls vertically.
-        .frame(height: TimelineLayout.visibleHeight(for: session?.timeline ?? Timeline()))
         .animation(.snappy(duration: 0.25), value: session?.timeline.tracks.count)
         .padding(.vertical, Theme.Spacing.sm)
         // Collapsed rather than removed, so it keeps its zoom.

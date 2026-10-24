@@ -38,11 +38,11 @@ struct TimelineTracksView: View {
                 switch row {
                 case .main:
                     clipTrack
-                        .frame(height: row.height)
+                        .frame(height: row.height(metrics))
                         .background(dropHighlight(dropTarget == .main || overlayDropsOnMain))
                 case .track(let track):
                     self.row(for: track)
-                        .frame(height: row.height)
+                        .frame(height: row.height(metrics))
                         .background(dropHighlight(dropTarget == .track(track)))
                 }
             }
@@ -111,7 +111,7 @@ struct TimelineTracksView: View {
     private func clipView(_ clip: Clip, at index: Int) -> some View {
         let isSelected = session.selectedClipID == clip.id
         let width = metrics.width(of: clip.duration)
-        return FilmstripView(clip: clip, width: width, store: store)
+        return FilmstripView(clip: clip, width: width, height: TimelineLayout.Row.main.height(metrics), store: store)
             .overlay {
                 if isSelected {
                     SelectionFrame(
@@ -245,7 +245,7 @@ struct TimelineTracksView: View {
         guard let kind = timeline.track(trackID)?.kind else { return trackID }
         let sameKind = timeline.tracks.filter { $0.kind == kind }
         guard let index = sameKind.firstIndex(where: { $0.id == trackID }) else { return trackID }
-        let pitch = TimelineLayout.height(of: kind) + Theme.Spacing.xs
+        let pitch = TimelineLayout.height(of: kind, metrics) + Theme.Spacing.xs
         // Visual tracks are shown top-down, so dragging up goes higher in the drawing order.
         let rows = Int((dy / pitch).rounded()) * (kind == .audio ? 1 : -1)
         let target = min(max(index + rows, 0), sameKind.count - 1)
@@ -266,7 +266,8 @@ struct TimelineTracksView: View {
     private func overlayView(_ overlay: OverlayClip, at index: Int) -> some View {
         let clip = overlay.clip
         let isSelected = session.selectedClipID == clip.id
-        return FilmstripView(clip: clip, width: metrics.width(of: clip.duration), store: store)
+        return FilmstripView(clip: clip, width: metrics.width(of: clip.duration),
+                             height: TimelineLayout.height(of: .video, metrics), store: store)
             .overlay {
                 if isSelected {
                     SelectionFrame(
@@ -309,7 +310,7 @@ struct TimelineTracksView: View {
     /// Re-applied to the drag's starting timeline, so it reads the overlay's start from there.
     private func moveOverlay(_ id: Clip.ID, by translation: CGFloat, fingerY: CGFloat) {
         let delta = Double(translation / metrics.pointsPerSecond)
-        let row = TimelineLayout.row(atY: fingerY, in: timeline)
+        let row = TimelineLayout.row(atY: fingerY, in: timeline, metrics)
         overlayDropsOnMain = row == .main
         var target: Track.ID?
         if case .track(let track) = row, track.kind == .video { target = track.id }
@@ -573,13 +574,16 @@ private struct RulerView: View {
 private struct FilmstripView: View {
     let clip: Clip
     let width: CGFloat
+    let height: CGFloat
     let store: MediaStore
 
     @Environment(\.displayScale) private var displayScale
     @State private var frames: [CGImage?] = []
 
-    private var frameWidth: CGFloat { Theme.Size.timelineClipHeight * 0.75 }
-    private var frameCount: Int { max(1, Int((width / frameWidth).rounded(.up))) }
+    /// About 3:4 frames, stretched a little so they fill the clip exactly
+    /// (overflowing frames would make the clip's accessibility frame too wide).
+    private var frameCount: Int { max(1, Int((width / (height * 0.75)).rounded())) }
+    private var frameWidth: CGFloat { width / CGFloat(frameCount) }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -610,10 +614,10 @@ private struct FilmstripView: View {
                     .frame(maxHeight: .infinity, alignment: .top)
             }
         }
-        .task(id: FrameRequest(clip: clip, count: frameCount)) {
+        .task(id: FrameRequest(clip: clip, count: frameCount, height: height)) {
             let step = clip.sourceDuration / Double(frameCount)
             let times = (0..<frameCount).map { clip.sourceStart + (Double($0) + 0.5) * step }
-            let size = Int(Theme.Size.timelineClipHeight * displayScale)
+            let size = Int(height * displayScale)
             frames = await ThumbnailCache.shared.frames(of: clip, atSourceTimes: times, maxPixelSize: size, store: store)
         }
     }
@@ -621,6 +625,7 @@ private struct FilmstripView: View {
     private struct FrameRequest: Equatable {
         let clip: Clip
         let count: Int
+        let height: CGFloat
     }
 }
 
@@ -643,13 +648,14 @@ struct EditorTimelineView: View {
             let inset = geo.size.width / 2
             TimelineScrollView(
                 contentWidth: metrics.width(of: contentDuration) + geo.size.width,
-                contentHeight: TimelineLayout.contentHeight(for: session.timeline),
+                contentHeight: TimelineLayout.contentHeight(for: session.timeline, metrics),
                 offset: metrics.offset(for: session.currentTime),
                 isScrollEnabled: !session.isDragging,
                 isHidden: isHidden,
                 onScrub: { session.scrub(to: metrics.time(forOffset: $0)) },
                 onInteractionChanged: { if $0 { session.pause() } },
                 onLongPress: { state, point in dragMainClip(state, trackX: point.x - inset, y: point.y) },
+                onPinch: pinch,
                 canScroll: { point in
                     !TimelineLayout.grabsSelection(at: CGPoint(x: point.x - inset, y: point.y), in: session.timeline,
                                                    metrics: metrics, selected: selectedIDs)
@@ -660,21 +666,46 @@ struct EditorTimelineView: View {
             }
             .overlay { playhead }
         }
-        .gesture(
-            MagnifyGesture()
-                .onChanged { value in
-                    let base = zoomBase ?? metrics
-                    zoomBase = base
-                    metrics = base.zoomed(by: value.magnification)
-                }
-                .onEnded { _ in zoomBase = nil }
-        )
+        // Grows with the tracks, up to a limit; past it the timeline scrolls vertically.
+        .frame(height: TimelineLayout.visibleHeight(for: session.timeline, metrics))
+        .background { zoomShortcuts }
         .sensoryFeedback(.selection, trigger: session.selectedClipID)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("editor.timeline")
     }
 
     private var contentDuration: Double { session.timeline.duration }
+
+    /// Fingers spread sideways zoom time; spread up and down, they resize the rows.
+    private func pinch(_ state: UIGestureRecognizer.State, scale: CGFloat, vertical: Bool) {
+        switch state {
+        case .began, .changed:
+            let base = zoomBase ?? metrics
+            zoomBase = base
+            metrics = vertical ? base.rowsZoomed(by: scale) : base.zoomed(by: scale)
+        default:
+            zoomBase = nil
+        }
+    }
+
+    /// Hardware keyboard: ⌘= / ⌘- zoom time, ⌥= / ⌥- resize the rows.
+    private var zoomShortcuts: some View {
+        Group {
+            Button("Zoom In") { metrics = metrics.zoomed(by: Self.keyZoomStep) }
+                .keyboardShortcut("=", modifiers: .command)
+            Button("Zoom Out") { metrics = metrics.zoomed(by: 1 / Self.keyZoomStep) }
+                .keyboardShortcut("-", modifiers: .command)
+            Button("Taller Tracks") { metrics = metrics.rowsZoomed(by: Self.keyZoomStep) }
+                .keyboardShortcut("=", modifiers: .option)
+            Button("Shorter Tracks") { metrics = metrics.rowsZoomed(by: 1 / Self.keyZoomStep) }
+                .keyboardShortcut("-", modifiers: .option)
+        }
+        .frame(width: 0, height: 0)
+        .opacity(0)
+        .accessibilityHidden(true)
+    }
+
+    private static let keyZoomStep: CGFloat = 1.25
 
     private var selectedIDs: Set<UUID> {
         Set([session.selectedClipID, session.selectedTextID, session.selectedAudioID].compactMap { $0 })
@@ -726,14 +757,14 @@ struct EditorTimelineView: View {
 
     /// The main-track clip under a long press, if it began on the main row.
     private func mainClip(at time: Double, y: CGFloat) -> Clip.ID? {
-        guard !session.isEditingInteractively, TimelineLayout.row(atY: y, in: session.timeline) == .main,
+        guard !session.isEditingInteractively, TimelineLayout.row(atY: y, in: session.timeline, metrics) == .main,
               let index = session.timeline.clipIndex(at: time)
         else { return nil }
         return session.timeline.clips[index].id
     }
 
     private func videoTrack(atY y: CGFloat) -> Track? {
-        guard case .track(let track) = TimelineLayout.row(atY: y, in: session.timeline), track.kind == .video else { return nil }
+        guard case .track(let track) = TimelineLayout.row(atY: y, in: session.timeline, metrics), track.kind == .video else { return nil }
         return track
     }
 

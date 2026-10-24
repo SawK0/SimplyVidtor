@@ -22,6 +22,24 @@ struct TimelineMetricsTests {
         #expect(metrics.tickInterval == expected)
     }
 
+    @Test func rowsZoomSeparatelyFromTime() {
+        let metrics = TimelineMetrics(pointsPerSecond: 100).rowsZoomed(by: 1.5)
+        #expect(metrics.rowScale == 1.5 && metrics.pointsPerSecond == 100)
+        #expect(metrics.zoomed(by: 2).rowScale == 1.5, "Time zoom keeps the row size")
+        #expect(metrics.rowsZoomed(by: 10).rowScale == TimelineMetrics.rowScaleRange.upperBound)
+        #expect(metrics.rowsZoomed(by: 0.1).rowScale == TimelineMetrics.rowScaleRange.lowerBound)
+        #expect(TimelineLayout.Row.main.height(metrics) == Theme.Size.timelineClipHeight * 1.5)
+    }
+
+    @Test func tallerRowsMakeTheContentTallerButNotTheVisibleTimelinePastItsLimit() {
+        var timeline = Timeline()
+        for _ in 0..<4 { timeline.addTrack(.video) }
+        let normal = TimelineMetrics()
+        let tall = normal.rowsZoomed(by: 2)
+        #expect(TimelineLayout.contentHeight(for: timeline, tall) > TimelineLayout.contentHeight(for: timeline, normal))
+        #expect(TimelineLayout.visibleHeight(for: timeline, tall) == TimelineLayout.visibleHeight(for: timeline, normal))
+    }
+
     @Test func zoomIsClamped() {
         let metrics = TimelineMetrics(pointsPerSecond: 100)
         #expect(metrics.zoomed(by: 2).pointsPerSecond == 200)
@@ -33,7 +51,7 @@ struct TimelineMetricsTests {
 
     /// The y of the middle of `row`.
     private func y(of row: TimelineLayout.Row, in timeline: Timeline) -> CGFloat {
-        let ys = stride(from: CGFloat(0), to: 1000, by: 1).filter { TimelineLayout.row(atY: $0, in: timeline) == row }
+        let ys = stride(from: CGFloat(0), to: 1000, by: 1).filter { TimelineLayout.row(atY: $0, in: timeline, TimelineMetrics()) == row }
         return (ys.first! + ys.last!) / 2
     }
 
