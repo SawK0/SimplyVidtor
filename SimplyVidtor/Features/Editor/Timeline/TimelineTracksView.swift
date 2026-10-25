@@ -60,15 +60,18 @@ struct TimelineTracksView: View {
         .background(alignment: .topLeading) { separators }
     }
 
-    /// A hairline in each gap between rows, across the whole timeline.
+    /// A hairline in each gap between rows, across the whole timeline. Plain
+    /// colors, not a Canvas: a canvas as wide as a long timeline goes blank
+    /// while playback redraws it.
     private var separators: some View {
-        Canvas { context, size in
-            var lines = Path()
-            for y in TimelineLayout.separatorYs(for: timeline, metrics) {
-                lines.addRect(CGRect(x: 0, y: y - Theme.Size.hairline / 2, width: size.width, height: Theme.Size.hairline))
+        ZStack(alignment: .topLeading) {
+            ForEach(TimelineLayout.separatorYs(for: timeline, metrics), id: \.self) { y in
+                Theme.Palette.separator
+                    .frame(height: Theme.Size.hairline)
+                    .offset(y: y - Theme.Size.hairline / 2)
             }
-            context.fill(lines, with: .color(Theme.Palette.separator))
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }

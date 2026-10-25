@@ -50,7 +50,9 @@ nonisolated final class ClipInstruction: NSObject, AVVideoCompositionInstruction
     let overlays: [Overlay]
     let live: LiveStore?
     let enablePostProcessing = false
-    let containsTweening: Bool
+    /// Text, keyframes and photo moves change over a still source frame (photos
+    /// and gaps are one stretched frame), so the player mustn't reuse frames.
+    let containsTweening = true
     let passthroughTrackID = kCMPersistentTrackID_Invalid
     let requiredSourceTrackIDs: [NSValue]?
 
@@ -62,7 +64,6 @@ nonisolated final class ClipInstruction: NSObject, AVVideoCompositionInstruction
         self.transitionRange = transitionRange ?? timeRange
         self.overlays = overlays
         self.live = live
-        containsTweening = transition != nil
         let trackIDs = (layers + overlays.map(\.layer)).compactMap { layer -> NSNumber? in
             if case .video(let trackID, _) = layer.content { NSNumber(value: trackID) } else { nil }
         }
